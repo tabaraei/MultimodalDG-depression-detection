@@ -1,0 +1,7 @@
+# Ignore the following directories
+/venv/
+/data/
+/.idea/
+
+# Ignore the following files
+.DS_Store

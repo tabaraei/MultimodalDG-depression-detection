@@ -1,0 +1,7 @@
+pandas
+tqdm
+requests
+jupyter
+librosa
+audiofile
+python-dotenv
