@@ -1,11 +1,41 @@
 import os
+import shutil
 import requests
-import zipfile
+from zipfile import ZipFile
 from io import BytesIO
 from tqdm.auto import tqdm
 import pandas as pd
 import audiofile
 from dotenv import load_dotenv
+
+
+
+class EATD_Corpus:
+    def __init__(self, download: bool = False):
+        load_dotenv()
+        self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
+        self.EATD_Corpus_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data', 'raw', 'EATD_Corpus')
+        self.EATD_Corpus_DOWNLOAD_PATH = (
+            'https://3f7xrg.bl.files.1drv.com/y4mzCOdmCDMRHErLHsESWkD0rmmY1j9ca3CfhfCpv6poE3j'
+            '-0dZd9HmKVC3k0LWif3I2XgyC1tErV8SrVr1mJNVNHYPmU_qqNvvZVBhOijBfsdwWaYVs6Zd4QzsC4HaljGNbTWwtnQ'
+            '-JrWog9EB0DbblDlKlNBYxcroYpLW9_qrHX7Ub2XEnYVcZ1gqMptzr3Us9Jj66IdrWRLoaYK_FJWiRQ'
+        )
+        self.EATD_Corpus_DOWNLOAD_PASSWORD = 'Ymj26Uv5'
+        self.SAMPLE_RATE = None
+        if download: self.download_dataset()
+
+    def download_dataset(self):
+        os.makedirs(self.EATD_Corpus_DATA_PATH, exist_ok=True)
+        response = requests.get(self.EATD_Corpus_DOWNLOAD_PATH, stream=True)
+        response.raise_for_status()
+        with ZipFile(BytesIO(response.content)) as zf:
+            zf.extractall(self.EATD_Corpus_DATA_PATH, pwd=bytes(self.EATD_Corpus_DOWNLOAD_PASSWORD, 'utf-8'))
+
+        DOWNLOAD_PATH = os.path.join(self.EATD_Corpus_DATA_PATH, 'EATD-Corpus')
+        for folder in os.listdir(DOWNLOAD_PATH):
+            folder_path = os.path.join(DOWNLOAD_PATH, folder)
+            shutil.move(folder_path, self.EATD_Corpus_DATA_PATH)
+        os.rmdir(DOWNLOAD_PATH)
 
 
 class DAIC_WoZ:
@@ -47,7 +77,7 @@ class DAIC_WoZ:
         for zip_name in tqdm(zip_files):
             response = requests.get(f'{self.DAIC_WoZ_DOWNLOAD_PATH}/{zip_name}', stream=True)
             response.raise_for_status()
-            with zipfile.ZipFile(BytesIO(response.content)) as zf:
+            with ZipFile(BytesIO(response.content)) as zf:
                 prefix = zip_name[:3]
                 zf.extract(f'{prefix}_TRANSCRIPT.csv', path=self.DAIC_WoZ_DATA_PATH)
                 zf.extract(f'{prefix}_AUDIO.wav', path=self.DAIC_WoZ_DATA_PATH)
@@ -95,10 +125,3 @@ class DAIC_WoZ:
             participant['Audio_Segments'] = audio_segments
 
         return participants_data
-
-
-if __name__ == "__main__":
-    # Set download=True to download the dataset
-    DAIC_dataset = DAIC_WoZ(download=False)
-    print(f'Number of training samples: {len(DAIC_dataset.train_data)}')
-    print(f'Number of test samples: {len(DAIC_dataset.test_data)}')

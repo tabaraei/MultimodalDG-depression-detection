@@ -2,6 +2,9 @@
 /venv/
 /data/
 /.idea/
+__pycache__/
 
 # Ignore the following files
+.env
 .DS_Store
+*.pyc
