@@ -9,33 +9,64 @@ import audiofile
 from dotenv import load_dotenv
 
 
-
-class EATD_Corpus:
+class Androids_Corpus:
     def __init__(self, download: bool = False):
         load_dotenv()
         self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
-        self.EATD_Corpus_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data', 'raw', 'EATD_Corpus')
-        self.EATD_Corpus_DOWNLOAD_PATH = (
-            'https://3f7xrg.bl.files.1drv.com/y4mzCOdmCDMRHErLHsESWkD0rmmY1j9ca3CfhfCpv6poE3j'
-            '-0dZd9HmKVC3k0LWif3I2XgyC1tErV8SrVr1mJNVNHYPmU_qqNvvZVBhOijBfsdwWaYVs6Zd4QzsC4HaljGNbTWwtnQ'
-            '-JrWog9EB0DbblDlKlNBYxcroYpLW9_qrHX7Ub2XEnYVcZ1gqMptzr3Us9Jj66IdrWRLoaYK_FJWiRQ'
-        )
-        self.EATD_Corpus_DOWNLOAD_PASSWORD = 'Ymj26Uv5'
-        self.SAMPLE_RATE = None
+        self.Androids_Corpus_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data', 'raw', 'Androids_Corpus')
+        self.Androids_Corpus_DOWNLOAD_PATH = 'https://www.dropbox.com/scl/fi/74bu3kf0pbmo4x4zntdk7/Androids-Corpus.zip?rlkey=0sl5ktwq8lx99a4bsux8xdsl3&e=2&dl=1'
+        self.SAMPLE_RATE = 44100
         if download: self.download_dataset()
+        self.fold_segments = self.extract_fold_segments()
 
     def download_dataset(self):
-        os.makedirs(self.EATD_Corpus_DATA_PATH, exist_ok=True)
-        response = requests.get(self.EATD_Corpus_DOWNLOAD_PATH, stream=True)
+        os.makedirs(self.Androids_Corpus_DATA_PATH, exist_ok=True)
+        response = requests.get(self.Androids_Corpus_DOWNLOAD_PATH, stream=True)
         response.raise_for_status()
         with ZipFile(BytesIO(response.content)) as zf:
-            zf.extractall(self.EATD_Corpus_DATA_PATH, pwd=bytes(self.EATD_Corpus_DOWNLOAD_PASSWORD, 'utf-8'))
+            zf.extractall(self.Androids_Corpus_DATA_PATH)
 
-        DOWNLOAD_PATH = os.path.join(self.EATD_Corpus_DATA_PATH, 'EATD-Corpus')
-        for folder in os.listdir(DOWNLOAD_PATH):
-            folder_path = os.path.join(DOWNLOAD_PATH, folder)
-            shutil.move(folder_path, self.EATD_Corpus_DATA_PATH)
-        os.rmdir(DOWNLOAD_PATH)
+        FOLDS_PATH = os.path.join(self.Androids_Corpus_DATA_PATH, 'Androids-Corpus/fold-lists.csv')
+        shutil.move(FOLDS_PATH, self.Androids_Corpus_DATA_PATH)
+
+        AUDIO_PATH = os.path.join(self.Androids_Corpus_DATA_PATH, 'Androids-Corpus/Interview-Task/audio_clip')
+        for content in os.listdir(AUDIO_PATH):
+            shutil.move(os.path.join(AUDIO_PATH, content), self.Androids_Corpus_DATA_PATH)
+
+        DOWNLOAD_PATH = os.path.join(self.Androids_Corpus_DATA_PATH, 'Androids-Corpus')
+        shutil.rmtree(DOWNLOAD_PATH)
+
+        macosx_dir = os.path.join(self.Androids_Corpus_DATA_PATH, '__MACOSX')
+        if os.path.exists(macosx_dir):
+            shutil.rmtree(macosx_dir)
+
+    def extract_fold_segments(self):
+        FOLDS_PATH = os.path.join(self.Androids_Corpus_DATA_PATH, 'fold-lists.csv')
+        df = pd.read_csv(FOLDS_PATH)
+
+        interview_columns = df.columns[df.columns.tolist().index('Interview'):]
+        folds = df.loc[1:, interview_columns].T.apply(lambda x: [
+            {'Participant_ID': val[1:-1], 'Depressed': 1 if val[4] == 'P' else 0}
+            for val in x.dropna().tolist()], axis=1).tolist()
+
+        for participants_data in folds:
+            for participant in participants_data:
+                PARTICIPANT_PATH = f"{self.Androids_Corpus_DATA_PATH}/{participant['Participant_ID']}"
+                audio_segments, text_segments = list(), list()
+
+                for data in sorted(os.listdir(PARTICIPANT_PATH)):
+                    DATA_PATH = os.path.join(PARTICIPANT_PATH, data)
+                    if data.endswith('.wav'):
+                        waveform, sample_rate = audiofile.read(DATA_PATH, dtype='float32')
+                        audio_segments.append(waveform)
+                    else:
+                        with open(DATA_PATH, 'r', encoding='utf-8') as f:
+                            text_segments.append(f.read())
+
+                participant['Text_Segments'] = text_segments
+                participant['Audio_Segments'] = audio_segments
+
+        return folds
 
 
 class DAIC_WoZ:
