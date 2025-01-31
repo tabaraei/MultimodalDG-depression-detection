@@ -3,7 +3,6 @@ tqdm
 requests
 jupyter
 librosa
-audiofile
 python-dotenv
 transformers
 datasets[audio]

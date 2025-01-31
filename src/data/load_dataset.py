@@ -86,8 +86,7 @@ class Androids_Corpus:
             for data in sorted(os.listdir(PARTICIPANT_PATH)):
                 DATA_PATH = os.path.join(PARTICIPANT_PATH, data)
                 if DATA_PATH.endswith('.wav'):
-                    waveform, sample_rate = audiofile.read(DATA_PATH, dtype='float32')
-                    waveform = librosa.resample(waveform, orig_sr=sample_rate, target_sr=16000)
+                    waveform, _ = librosa.load(DATA_PATH, sr=self.SAMPLE_RATE)
                     text = pipe(waveform)['text']
 
                     TEXT_FILE_NAME = DATA_PATH.replace('.wav', '.txt')
@@ -111,8 +110,7 @@ class Androids_Corpus:
                 for data in sorted(os.listdir(PARTICIPANT_PATH)):
                     DATA_PATH = os.path.join(PARTICIPANT_PATH, data)
                     if data.endswith('.wav'):
-                        waveform, sample_rate = audiofile.read(DATA_PATH, dtype='float32')
-                        waveform = librosa.resample(waveform, orig_sr=sample_rate, target_sr=16000)
+                        waveform, _ = librosa.load(DATA_PATH, sr=self.SAMPLE_RATE)
                         audio_segments.append(waveform)
                     else:
                         with open(DATA_PATH, 'r', encoding='utf-8') as f:
@@ -202,9 +200,9 @@ class DAIC_WoZ:
             text_segments = interview_df['value'].tolist()
 
             # Load the interview audio, set the start/end of segments based on sample rate, extract audio segment
-            waveform, sample_rate = audiofile.read(AUDIO_PATH, dtype='float32')
-            interview_df['start_time'] = (interview_df['start_time'] * sample_rate).astype(int)
-            interview_df['stop_time'] = (interview_df['stop_time'] * sample_rate).astype(int)
+            waveform, _ = librosa.load(AUDIO_PATH, sr=self.SAMPLE_RATE)
+            interview_df['start_time'] = (interview_df['start_time'] * self.SAMPLE_RATE).astype(int)
+            interview_df['stop_time'] = (interview_df['stop_time'] * self.SAMPLE_RATE).astype(int)
             audio_segments = [waveform[segment.start_time:segment.stop_time] for segment in interview_df.itertuples()]
 
             # Assign the extracted segments to the participant
