@@ -7,16 +7,21 @@ from tqdm.auto import tqdm
 import pandas as pd
 import audiofile
 from dotenv import load_dotenv
+import librosa
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
+import torch
+import re
 
 
 class Androids_Corpus:
-    def __init__(self, download: bool = False):
+    def __init__(self, download: bool = False, extract_transcripts: bool = False):
         load_dotenv()
         self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
         self.Androids_Corpus_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data', 'raw', 'Androids_Corpus')
         self.Androids_Corpus_DOWNLOAD_PATH = 'https://www.dropbox.com/scl/fi/74bu3kf0pbmo4x4zntdk7/Androids-Corpus.zip?rlkey=0sl5ktwq8lx99a4bsux8xdsl3&e=2&dl=1'
-        self.SAMPLE_RATE = 44100
+        self.SAMPLE_RATE = 16000
         if download: self.download_dataset()
+        if extract_transcripts: self.extract_transcripts()
         self.fold_segments = self.extract_fold_segments()
 
     def download_dataset(self):
@@ -40,6 +45,55 @@ class Androids_Corpus:
         if os.path.exists(macosx_dir):
             shutil.rmtree(macosx_dir)
 
+    def extract_transcripts(self):
+        # Prepare and download the Whisper fine-tuned model
+        device = (
+            'mps:0' if torch.backends.mps.is_available() else
+            'cuda:0' if torch.cuda.is_available() else
+            'cpu'
+        )
+        torch_dtype = torch.float32 if device == 'cpu' else torch.float16
+        MODEL_NAME = 'bofenghuang/whisper-large-v3-distil-it-v0.2'
+        processor = AutoProcessor.from_pretrained(MODEL_NAME)
+        model = AutoModelForSpeechSeq2Seq.from_pretrained(
+            MODEL_NAME,
+            torch_dtype=torch_dtype,
+            low_cpu_mem_usage=True,
+        ).to(device)
+        pipe = pipeline(
+            task='automatic-speech-recognition',
+            model=model,
+            feature_extractor=processor.feature_extractor,
+            tokenizer=processor.tokenizer,
+            torch_dtype=torch_dtype,
+            device=device,
+            generate_kwargs={
+                'task': 'transcribe',
+                'language': 'it',
+                'return_timestamps': True,
+                'max_new_tokens': 128,
+                'forced_decoder_ids': None,
+            }
+        )
+
+        # Extract transcripts
+        pattern = r'^[0-9]{2}_[CP][MF][0-9]{2}_[x0-9]$'
+        PARTICIPANTS_PATH = os.listdir(self.Androids_Corpus_DATA_PATH)
+        PARTICIPANTS_PATH = [f for f in PARTICIPANTS_PATH if re.match(pattern, f)]
+        for participant in tqdm(sorted(PARTICIPANTS_PATH)):
+            PARTICIPANT_PATH = os.path.join(self.Androids_Corpus_DATA_PATH, participant)
+
+            for data in sorted(os.listdir(PARTICIPANT_PATH)):
+                DATA_PATH = os.path.join(PARTICIPANT_PATH, data)
+                if DATA_PATH.endswith('.wav'):
+                    waveform, sample_rate = audiofile.read(DATA_PATH, dtype='float32')
+                    waveform = librosa.resample(waveform, orig_sr=sample_rate, target_sr=16000)
+                    text = pipe(waveform)['text']
+
+                    TEXT_FILE_NAME = DATA_PATH.replace('.wav', '.txt')
+                    with open(TEXT_FILE_NAME, 'w') as f:
+                        f.write(text)
+
     def extract_fold_segments(self):
         FOLDS_PATH = os.path.join(self.Androids_Corpus_DATA_PATH, 'fold-lists.csv')
         df = pd.read_csv(FOLDS_PATH)
@@ -51,13 +105,14 @@ class Androids_Corpus:
 
         for participants_data in folds:
             for participant in participants_data:
-                PARTICIPANT_PATH = f"{self.Androids_Corpus_DATA_PATH}/{participant['Participant_ID']}"
+                PARTICIPANT_PATH = os.path.join(self.Androids_Corpus_DATA_PATH, participant['Participant_ID'])
                 audio_segments, text_segments = list(), list()
 
                 for data in sorted(os.listdir(PARTICIPANT_PATH)):
                     DATA_PATH = os.path.join(PARTICIPANT_PATH, data)
                     if data.endswith('.wav'):
                         waveform, sample_rate = audiofile.read(DATA_PATH, dtype='float32')
+                        waveform = librosa.resample(waveform, orig_sr=sample_rate, target_sr=16000)
                         audio_segments.append(waveform)
                     else:
                         with open(DATA_PATH, 'r', encoding='utf-8') as f:
@@ -106,7 +161,8 @@ class DAIC_WoZ:
         os.makedirs(self.DAIC_WoZ_DATA_PATH, exist_ok=True)
         zip_files = [f'{session}_P.zip' for session in self.selected_sessions]
         for zip_name in tqdm(zip_files):
-            response = requests.get(f'{self.DAIC_WoZ_DOWNLOAD_PATH}/{zip_name}', stream=True)
+            ZIP_PATH = os.path.join(self.DAIC_WoZ_DOWNLOAD_PATH, zip_name)
+            response = requests.get(ZIP_PATH, stream=True)
             response.raise_for_status()
             with ZipFile(BytesIO(response.content)) as zf:
                 prefix = zip_name[:3]
@@ -130,8 +186,8 @@ class DAIC_WoZ:
         participants_data = participants_df[['Participant_ID', 'Depressed']].to_dict(orient='records')
         for participant in participants_data:
             # Set the path for audio and text file of each participant
-            TEXT_PATH = f"{self.DAIC_WoZ_DATA_PATH}/{participant['Participant_ID']}_TRANSCRIPT.csv"
-            AUDIO_PATH = f"{self.DAIC_WoZ_DATA_PATH}/{participant['Participant_ID']}_AUDIO.wav"
+            TEXT_PATH = os.path.join(self.DAIC_WoZ_DATA_PATH, f"{participant['Participant_ID']}_TRANSCRIPT.csv")
+            AUDIO_PATH = os.path.join(self.DAIC_WoZ_DATA_PATH, f"{participant['Participant_ID']}_AUDIO.wav")
 
             # Load the interview text, aggregate consecutive rows of participant, and extract text segments
             interview_df = pd.read_csv(TEXT_PATH, delimiter='\t')
