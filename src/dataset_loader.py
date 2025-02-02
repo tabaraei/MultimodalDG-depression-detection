@@ -5,12 +5,12 @@ from zipfile import ZipFile
 from io import BytesIO
 from tqdm.auto import tqdm
 import pandas as pd
-import audiofile
 from dotenv import load_dotenv
 import librosa
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 import torch
 import re
+from natsort import natsorted
 
 
 class Androids_Corpus:
@@ -80,10 +80,10 @@ class Androids_Corpus:
         pattern = r'^[0-9]{2}_[CP][MF][0-9]{2}_[x0-9]$'
         PARTICIPANTS_PATH = os.listdir(self.Androids_Corpus_DATA_PATH)
         PARTICIPANTS_PATH = [f for f in PARTICIPANTS_PATH if re.match(pattern, f)]
-        for participant in tqdm(sorted(PARTICIPANTS_PATH)):
+        for participant in tqdm(natsorted(PARTICIPANTS_PATH)):
             PARTICIPANT_PATH = os.path.join(self.Androids_Corpus_DATA_PATH, participant)
 
-            for data in sorted(os.listdir(PARTICIPANT_PATH)):
+            for data in natsorted(os.listdir(PARTICIPANT_PATH)):
                 DATA_PATH = os.path.join(PARTICIPANT_PATH, data)
                 if DATA_PATH.endswith('.wav'):
                     waveform, _ = librosa.load(DATA_PATH, sr=self.SAMPLE_RATE)
@@ -107,12 +107,12 @@ class Androids_Corpus:
                 PARTICIPANT_PATH = os.path.join(self.Androids_Corpus_DATA_PATH, participant['Participant_ID'])
                 audio_segments, text_segments = list(), list()
 
-                for data in sorted(os.listdir(PARTICIPANT_PATH)):
+                for data in natsorted(os.listdir(PARTICIPANT_PATH)):
                     DATA_PATH = os.path.join(PARTICIPANT_PATH, data)
                     if data.endswith('.wav'):
                         waveform, _ = librosa.load(DATA_PATH, sr=self.SAMPLE_RATE)
-                        audio_segments.append(waveform)
-                    else:
+                        audio_segments.append(torch.tensor(waveform, dtype=torch.float32))
+                    elif data.endswith('.txt'):
                         with open(DATA_PATH, 'r', encoding='utf-8') as f:
                             text_segments.append(f.read())
 
@@ -204,6 +204,7 @@ class DAIC_WoZ:
             interview_df['start_time'] = (interview_df['start_time'] * self.SAMPLE_RATE).astype(int)
             interview_df['stop_time'] = (interview_df['stop_time'] * self.SAMPLE_RATE).astype(int)
             audio_segments = [waveform[segment.start_time:segment.stop_time] for segment in interview_df.itertuples()]
+            audio_segments = [torch.tensor(waveform, dtype=torch.float32) for waveform in audio_segments]
 
             # Assign the extracted segments to the participant
             participant['Text_Segments'] = text_segments

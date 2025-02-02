@@ -7,3 +7,4 @@ python-dotenv
 transformers
 datasets[audio]
 accelerate
+natsort

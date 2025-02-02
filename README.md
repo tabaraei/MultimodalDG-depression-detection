@@ -1,22 +1,23 @@
 # MS-Thesis
 
 The following commands were run in MacOS iTerminal to install the Python packages and prerequisites:
+
 ```shell
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-python3 src/data/load_dataset.py
+python3 src/data/dataset_loader.py
 ```
 
-
 Create a `.env` file at the project root, and add the following details to the file:
+
 ```
 PROJECT_ROOT_PATH=/Users/<LOCAL_PATH_TO_THE_PROJECT>/MS-Thesis
 ```
 
-
 Suggested Project Organization:
+
 ```shell
 project_name/
 ├── data/                      # Store raw and processed datasets
@@ -28,7 +29,7 @@ project_name/
 │   │   ├── text_features/
 ├── src/                       # Main source code
 │   ├── data/                  # Code related to data downloading & preparation
-│   │   ├── load_dataset.py   # Download and save DAIC-WoZ and EATD-Corpus
+│   │   ├── dataset_loader.py   # Download and save DAIC-WoZ and EATD-Corpus
 │   │   ├── preprocess_eatd.py # Preprocess EATD-Corpus
 │   │   ├── preprocess_daic.py # Preprocess DAIC-WoZ
 │   ├── features/              # Feature extraction for text and audio
