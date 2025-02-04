@@ -2,51 +2,63 @@ import torch
 import torch.nn as nn
 
 
-class MultimodalBiLSTMClassifier(nn.Module):
-    def __init__(self, text_vectorizer, audio_vectorizer, hidden_dim=256, num_layers=2, fc_hidden_dim=128):
+class MultimodalClassifier(nn.Module):
+    """
+    1. First, audio and text segments are fed through the vectorizers, taking as output a sequence of vectors with
+       dimensionality <batch_size, seq_len, feature_dim>, where `seq_len` depends on the audio and text lengths.
+
+    2. Then, we feed the sequence of vectors through the BiLSTM layers, one for each modality, resulting in output
+       of dimensionality <num_layers * 2 (BiLSTM), batch_size, hidden_dim>. Then, we take the last forward/backward
+       hidden state layers as output, resulting in <batch_size, hidden_dim * 2 (BiLSTM)>
+
+    3. Finally, we concatenate the extracted features from the BiLSTM layers for audio and text modalities, giving
+       output dimensionality of <batch_size, hidden_dim * 2 (BiLSTM) * 2 (modalities)>, and then feed them through
+       a fully connected network with `fc_hidden_dim` hidden neurons and a single output neuron.
+    """
+
+    def __init__(self, audio_vectorizer, text_vectorizer, hidden_dim=256, num_layers=1, fc_hidden_dim=128):
         super().__init__()
-
-        self.text_vectorizer = text_vectorizer  # Any transformer-based text vectorizer (e.g., BERT, RoBERTa)
-        self.audio_vectorizer = audio_vectorizer  # Any audio feature extractor (e.g., wav2vec2, melspectrogram)
-
-        # Determine feature sizes based on vectorizers
-        text_feat_dim = self.text_vectorizer.feature_dim
-        audio_feat_dim = self.audio_vectorizer.feature_dim
-
-        # BiLSTM for text
-        self.text_lstm = nn.LSTM(input_size=text_feat_dim, hidden_size=hidden_dim, num_layers=num_layers,
-                                 batch_first=True, bidirectional=True)
-
-        # BiLSTM for audio
-        self.audio_lstm = nn.LSTM(input_size=audio_feat_dim, hidden_size=hidden_dim, num_layers=num_layers,
-                                  batch_first=True, bidirectional=True)
-
-        # Fully connected network
+        self.text_vectorizer = text_vectorizer
+        self.audio_vectorizer = audio_vectorizer
+        self.text_lstm = nn.LSTM(
+            input_size=self.text_vectorizer.feature_dim,
+            hidden_size=hidden_dim,
+            num_layers=num_layers,
+            batch_first=True,
+            bidirectional=True
+        )
+        self.audio_lstm = nn.LSTM(
+            input_size=self.audio_vectorizer.feature_dim,
+            hidden_size=hidden_dim,
+            num_layers=num_layers,
+            batch_first=True,
+            bidirectional=True
+        )
         self.fc = nn.Sequential(
-            nn.Linear(2 * hidden_dim * 2, fc_hidden_dim),  # 2 for BiLSTM (forward + backward) * 2 modalities
+            nn.Linear(hidden_dim * 2 * 2, fc_hidden_dim),  # <hidden_dim * forward/backward * 2 modalities>
             nn.ReLU(),
             nn.Linear(fc_hidden_dim, 1),
             nn.Sigmoid()
         )
 
-    def forward(self, text_input, audio_input):
-        # Vectorize text and audio
-        text_features = self.text_vectorizer(text_input)  # Shape: (batch, seq_len, text_feat_dim)
-        audio_features = self.audio_vectorizer(audio_input)  # Shape: (batch, seq_len, audio_feat_dim)
+    def forward(self, audio_segments, text_segments):
+        # output_dim: <batch_size, seq_len, feature_dim>
+        audio_features = self.audio_vectorizer(audio_segments)
+        text_features = self.text_vectorizer(text_segments)
 
-        # BiLSTM processing (taking the last hidden states from both directions)
-        _, (text_hidden, _) = self.text_lstm(text_features)  # text_hidden: (num_layers * 2, batch, hidden_dim)
-        _, (audio_hidden, _) = self.audio_lstm(audio_features)  # audio_hidden: (num_layers * 2, batch, hidden_dim)
+        # output_dim: <num_layers * 2 (BiLSTM), batch_size, hidden_dim>
+        _, (BiLSTM_audio_hidden, _) = self.audio_lstm(audio_features)
+        _, (BiLSTM_text_hidden, _) = self.text_lstm(text_features)
 
-        # Concatenating last forward and backward hidden states
-        text_out = torch.cat((text_hidden[-2], text_hidden[-1]), dim=-1)  # Shape: (batch, hidden_dim * 2)
-        audio_out = torch.cat((audio_hidden[-2], audio_hidden[-1]), dim=-1)  # Shape: (batch, hidden_dim * 2)
+        # output_dim: <batch_size, hidden_dim * 2 (BiLSTM)>
+        BiLSTM_audio_hidden = torch.cat((BiLSTM_audio_hidden[-2], BiLSTM_audio_hidden[-1]), dim=-1)
+        BiLSTM_text_hidden = torch.cat((BiLSTM_text_hidden[-2], BiLSTM_text_hidden[-1]), dim=-1)
 
-        # Concatenating text and audio outputs
-        combined_features = torch.cat((text_out, audio_out), dim=-1)  # Shape: (batch, hidden_dim * 4)
+        # output_dim: <batch_size, hidden_dim * 2 (BiLSTM) * 2 (modalities)>
+        concatenated_features = torch.cat((BiLSTM_audio_hidden, BiLSTM_text_hidden), dim=-1)
 
-        # Fully connected network for classification
-        output = self.fc(combined_features)  # Shape: (batch, 1)
+        # output_dim: <batch_size, 1>
+        output = self.fc(concatenated_features)
         return output
 
     def compute_loss(self, predictions, targets):

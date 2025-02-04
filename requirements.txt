@@ -8,3 +8,4 @@ transformers
 datasets[audio]
 accelerate
 natsort
+torchinfo

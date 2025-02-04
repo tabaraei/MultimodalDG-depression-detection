@@ -18,6 +18,7 @@ class AudioFeatureExtractor:
     def __call__(self, audio_segments):
         segments_features = []
         for segment in audio_segments:
+            segment = torch.tensor(segment, dtype=torch.float32)
             inputs = self.processor(segment, sampling_rate=self.sample_rate, return_tensors='pt', padding=True)
             inputs = {key: value.to(self.device) for key, value in inputs.items()}
             with torch.no_grad():
