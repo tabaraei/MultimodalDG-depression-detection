@@ -25,12 +25,12 @@ class DatasetDownloader:
         self.SAMPLE_RATE = 16000
 
         if dataset == 'DAIC_WoZ':
-            self.DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, os.getenv('DATA_PATH_DAIC_WOZ'))
+            self.RAW_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/DAIC_WoZ')
             self.DOWNLOAD_ADDRESS = os.getenv('DOWNLOAD_ADDRESS_DAIC_WOZ')
             self.download_DAIC_WoZ()
         elif dataset == 'Androids_Corpus':
-            self.DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, os.getenv('DATA_PATH_ANDROIDS_CORPUS'))
-            self.DOWNLOAD_ADDRESS = os.getenv('DOWNLOAD_ADDRESS_Androids_Corpus')
+            self.RAW_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/Androids_Corpus')
+            self.DOWNLOAD_ADDRESS = os.getenv('DOWNLOAD_ADDRESS_ANDROIDS_CORPUS')
             self.download_Androids_Corpus()
             self.extract_transcripts()
 
@@ -60,24 +60,24 @@ class DatasetDownloader:
             response = requests.get(ZIP_PATH, stream=True)
             response.raise_for_status()
             with ZipFile(BytesIO(response.content)) as zf:
-                zf.extract(f'{session}_P_TRANSCRIPT.csv', path=self.DATA_PATH)
-                zf.extract(f'{session}_P_AUDIO.wav', path=self.DATA_PATH)
+                zf.extract(f'{session}_P_TRANSCRIPT.csv', path=self.RAW_DATA_PATH)
+                zf.extract(f'{session}_P_AUDIO.wav', path=self.RAW_DATA_PATH)
 
     def download_Androids_Corpus(self):
-        os.makedirs(self.DATA_PATH, exist_ok=True)
+        os.makedirs(self.RAW_DATA_PATH, exist_ok=True)
         response = requests.get(self.DOWNLOAD_ADDRESS, stream=True)
         response.raise_for_status()
         with ZipFile(BytesIO(response.content)) as zf:
-            zf.extractall(self.DATA_PATH)
+            zf.extractall(self.RAW_DATA_PATH)
 
-        FOLDS_PATH = os.path.join(self.DATA_PATH, 'Androids-Corpus/fold-lists.csv')
-        shutil.move(FOLDS_PATH, self.DATA_PATH)
+        FOLDS_PATH = os.path.join(self.RAW_DATA_PATH, 'Androids-Corpus/fold-lists.csv')
+        shutil.move(FOLDS_PATH, self.RAW_DATA_PATH)
 
-        AUDIO_PATH = os.path.join(self.DATA_PATH, 'Androids-Corpus/Interview-Task/audio_clip')
+        AUDIO_PATH = os.path.join(self.RAW_DATA_PATH, 'Androids-Corpus/Interview-Task/audio_clip')
         for content in os.listdir(AUDIO_PATH):
-            shutil.move(os.path.join(AUDIO_PATH, content), self.DATA_PATH)
+            shutil.move(os.path.join(AUDIO_PATH, content), self.RAW_DATA_PATH)
 
-        DOWNLOAD_PATH = os.path.join(self.DATA_PATH, 'Androids-Corpus')
+        DOWNLOAD_PATH = os.path.join(self.RAW_DATA_PATH, 'Androids-Corpus')
         shutil.rmtree(DOWNLOAD_PATH)
 
     def extract_transcripts(self):
@@ -101,16 +101,16 @@ class DatasetDownloader:
 
         # Extract transcripts
         pattern = r'^[0-9]{2}_[CP][MF][0-9]{2}_[x0-9]$'
-        for participant in tqdm(natsorted(os.listdir(self.DATA_PATH))):
+        for participant in tqdm(natsorted(os.listdir(self.RAW_DATA_PATH))):
             if re.match(pattern, participant):
-                PARTICIPANT_PATH = os.path.join(self.DATA_PATH, participant)
+                PARTICIPANT_PATH = os.path.join(self.RAW_DATA_PATH, participant)
 
                 for data in natsorted(os.listdir(PARTICIPANT_PATH)):
-                    DATA_PATH = os.path.join(PARTICIPANT_PATH, data)
-                    if DATA_PATH.endswith('.wav'):
-                        waveform, _ = librosa.load(DATA_PATH, sr=self.SAMPLE_RATE)
+                    data_path = os.path.join(PARTICIPANT_PATH, data)
+                    if data_path.endswith('.wav'):
+                        waveform, _ = librosa.load(data_path, sr=self.SAMPLE_RATE)
                         text = pipe(waveform)['text']
 
-                        TEXT_FILE_NAME = DATA_PATH.replace('.wav', '.txt')
-                        with open(TEXT_FILE_NAME, 'w') as f:
+                        text_file_name = data_path.replace('.wav', '.txt')
+                        with open(text_file_name, 'w') as f:
                             f.write(text)

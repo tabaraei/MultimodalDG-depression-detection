@@ -50,3 +50,8 @@ class TextFeatureExtractor:
             segments_features.append(features)
         features = torch.cat(segments_features, dim=1)
         return features
+
+
+class LabelTransformer:
+    def __call__(self, y):
+        return torch.tensor(y, dtype=torch.float32).unsqueeze(0)
