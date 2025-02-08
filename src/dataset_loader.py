@@ -11,16 +11,18 @@ from abc import ABC, abstractmethod
 
 
 class BaseDataset(Dataset, ABC):
-    def __init__(self, raw_data_path, processed_data_path, audio_vectorizer=None, text_vectorizer=None, device=None):
+    def __init__(self, raw_data_path, processed_data_path, audio_vectorizer=None, text_vectorizer=None):
         self.RAW_DATA_PATH = raw_data_path
         self.PROCESSED_DATA_PATH = processed_data_path
         self.SAMPLE_RATE = 16000
         self.X_audio = list()
         self.X_text = list()
         self.y = list()
-        self.audio_vectorizer = AudioFeatureExtractor(model_name=audio_vectorizer, device=device)
-        self.text_vectorizer = TextFeatureExtractor(model_name=text_vectorizer, device=device)
+        self.audio_vectorizer = AudioFeatureExtractor(model_name=audio_vectorizer)
+        self.text_vectorizer = TextFeatureExtractor(model_name=text_vectorizer)
         self.label_transformer = LabelTransformer()
+        self.audio_feature_dim = self.audio_vectorizer.feature_dim
+        self.text_feature_dim = self.text_vectorizer.feature_dim
 
     def cache_dataset(self, cache_name):
         os.makedirs(self.PROCESSED_DATA_PATH, exist_ok=True)
@@ -59,22 +61,21 @@ class BaseDataset(Dataset, ABC):
 
 
 class DAICWoZDataset(BaseDataset):
-    def __init__(self, train_or_dev='train', audio_vectorizer=None, text_vectorizer=None, device=None):
+    def __init__(self, train_or_dev='train', audio_vectorizer=None, text_vectorizer=None):
         load_dotenv()
         self.DOWNLOAD_ADDRESS = os.getenv('DOWNLOAD_ADDRESS_DAIC_WOZ')
         self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
         self.train_or_dev = train_or_dev
 
         super().__init__(
-            raw_data_path=os.path.join(self.PROJECT_ROOT_PATH, "data/raw/DAIC_WoZ"),
-            processed_data_path=os.path.join(self.PROJECT_ROOT_PATH, "data/processed/DAIC_WoZ"),
+            raw_data_path=os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/DAIC_WoZ'),
+            processed_data_path=os.path.join(self.PROJECT_ROOT_PATH, 'data/processed/DAIC_WoZ'),
             audio_vectorizer=audio_vectorizer,
-            text_vectorizer=text_vectorizer,
-            device=device
+            text_vectorizer=text_vectorizer
         )
 
         self.participants = self.get_participants()
-        if audio_vectorizer and text_vectorizer and device:
+        if audio_vectorizer and text_vectorizer:
             cache_name = f'{audio_vectorizer}_{text_vectorizer}_{train_or_dev}.pkl'
             self.cache_dataset(cache_name)
         else:
@@ -117,7 +118,7 @@ class DAICWoZDataset(BaseDataset):
 
 
 class AndroidsCorpusDataset(BaseDataset):
-    def __init__(self, fold=0, train_or_test='train', audio_vectorizer=None, text_vectorizer=None, device=None):
+    def __init__(self, fold=0, train_or_test='train', audio_vectorizer=None, text_vectorizer=None):
         load_dotenv()
         self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
         self.train_or_test = train_or_test
@@ -127,12 +128,11 @@ class AndroidsCorpusDataset(BaseDataset):
             raw_data_path=os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/Androids_Corpus'),
             processed_data_path=os.path.join(self.PROJECT_ROOT_PATH, 'data/processed/Androids_Corpus'),
             audio_vectorizer=audio_vectorizer,
-            text_vectorizer=text_vectorizer,
-            device=device
+            text_vectorizer=text_vectorizer
         )
 
         self.participants = self.get_participants()
-        if audio_vectorizer and text_vectorizer and device:
+        if audio_vectorizer and text_vectorizer:
             cache_name = f'{audio_vectorizer}_{text_vectorizer}_{train_or_test}_fold{fold}.pkl'
             self.cache_dataset(cache_name)
         else:

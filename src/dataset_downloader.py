@@ -82,11 +82,7 @@ class DatasetDownloader:
 
     def extract_transcripts(self):
         # Prepare and download the Whisper fine-tuned model
-        device = (
-            'mps:0' if torch.backends.mps.is_available() else
-            'cuda:0' if torch.cuda.is_available() else
-            'cpu'
-        )
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         MODEL_NAME = 'bofenghuang/whisper-large-v3-distil-it-v0.2'
         processor = AutoProcessor.from_pretrained(MODEL_NAME)
         model = AutoModelForSpeechSeq2Seq.from_pretrained(MODEL_NAME).to(device)

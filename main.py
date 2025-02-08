@@ -1,28 +1,29 @@
-from src.dataset_loader import AndroidsCorpusDataset, DAICWoZDataset
 from src.dataset_downloader import DatasetDownloader
-
+from src.training import TrainEvalModel
 import itertools
-import torch
+
+
+def run_experiments(dataset, audio_vectorizers, text_vectorizers):
+    experiments = itertools.product(audio_vectorizers, text_vectorizers)
+    for audio_vectorizer, text_vectorizer in experiments:
+        TrainEvalModel(
+            dataset=dataset,
+            audio_vectorizer=audio_vectorizer,
+            text_vectorizer=text_vectorizer,
+            reset_log_file=True
+        )
+
 
 if __name__ == "__main__":
     DatasetDownloader(dataset='DAIC_WoZ')
     DatasetDownloader(dataset='Androids_Corpus')
-
-    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-    experiments = itertools.product(range(5), ['train', 'test'], ['HuBERT', 'Wav2Vec2'], ['ItalianBERT', 'BERT'])
-    for fold, train_or_test, audio_vectorizer, text_vectorizer in experiments:
-        AndroidsCorpusDataset(
-            fold=fold,
-            train_or_test=train_or_test,
-            audio_vectorizer=audio_vectorizer,
-            text_vectorizer=text_vectorizer,
-            device=device
-        )
-    experiments = itertools.product(['train', 'dev'], ['HuBERT', 'Wav2Vec2'], ['BERT'])
-    for train_or_dev, audio_vectorizer, text_vectorizer in experiments:
-        DAICWoZDataset(
-            train_or_dev=train_or_dev,
-            audio_vectorizer=audio_vectorizer,
-            text_vectorizer=text_vectorizer,
-            device=device
-        )
+    run_experiments(
+        dataset='DAIC_WoZ',
+        audio_vectorizers=['HuBERT', 'Wav2Vec2'],
+        text_vectorizers=['BERT'],
+    )
+    run_experiments(
+        dataset='Androids_Corpus',
+        audio_vectorizers=['HuBERT', 'Wav2Vec2'],
+        text_vectorizers=['ItalianBERT', 'BERT'],
+    )

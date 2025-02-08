@@ -3,15 +3,15 @@ import torch
 
 
 class AudioFeatureExtractor:
-    def __init__(self, model_name, device):
+    def __init__(self, model_name):
         models = {
             'Wav2Vec2': 'facebook/wav2vec2-base-960h',
             'HuBERT': 'facebook/hubert-large-ls960-ft'
         }
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model_name = models[model_name]
-        self.device = device
         self.processor = AutoProcessor.from_pretrained(self.model_name)
-        self.model = AutoModel.from_pretrained(self.model_name).to(device)
+        self.model = AutoModel.from_pretrained(self.model_name).to(self.device)
         self.feature_dim = self.model.config.hidden_size
         self.sample_rate = 16000
 
@@ -29,15 +29,15 @@ class AudioFeatureExtractor:
 
 
 class TextFeatureExtractor:
-    def __init__(self, model_name, device):
+    def __init__(self, model_name):
         models = {
             'BERT': 'bert-base-uncased',
             'ItalianBERT': 'dbmdz/bert-base-italian-cased'
         }
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model_name = models[model_name]
-        self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model = AutoModel.from_pretrained(self.model_name).to(device)
+        self.model = AutoModel.from_pretrained(self.model_name).to(self.device)
         self.feature_dim = self.model.config.hidden_size
 
     def __call__(self, text_segments):

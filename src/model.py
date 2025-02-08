@@ -38,8 +38,7 @@ class MultimodalClassifier(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(lstm_hidden_dim * 2 * 2, fc_hidden_dim),  # <lstm_hidden_dim * forward/backward * 2 modalities>
             nn.ReLU(),
-            nn.Linear(fc_hidden_dim, 1),
-            nn.Sigmoid()
+            nn.Linear(fc_hidden_dim, 1)
         )
 
     def forward(self, x_audio, x_text):
@@ -56,5 +55,5 @@ class MultimodalClassifier(nn.Module):
         concatenated_features = torch.cat((BiLSTM_audio_hidden, BiLSTM_text_hidden), dim=-1)
 
         # output_dim: <batch_size, 1>
-        output = self.fc(concatenated_features)
-        return output
+        output_logit = self.fc(concatenated_features)
+        return output_logit

@@ -1,4 +1,5 @@
 pandas
+numpy
 tqdm
 requests
 jupyter
@@ -9,3 +10,4 @@ datasets[audio]
 accelerate
 natsort
 torchinfo
+scikit-learn
