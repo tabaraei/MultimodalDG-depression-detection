@@ -15,15 +15,16 @@ def run_experiments(dataset, audio_vectorizers, text_vectorizers):
 
 
 if __name__ == "__main__":
-    DatasetDownloader(dataset='DAIC_WoZ')
-    DatasetDownloader(dataset='Androids_Corpus')
-    run_experiments(
-        dataset='DAIC_WoZ',
-        audio_vectorizers=['HuBERT', 'Wav2Vec2'],
-        text_vectorizers=['BERT'],
-    )
-    run_experiments(
-        dataset='Androids_Corpus',
-        audio_vectorizers=['HuBERT', 'Wav2Vec2'],
-        text_vectorizers=['ItalianBERT', 'BERT'],
-    )
+    pass
+    # DatasetDownloader(dataset='DAIC_WoZ')
+    # DatasetDownloader(dataset='Androids_Corpus')
+    # run_experiments(
+    #     dataset='DAIC_WoZ',
+    #     audio_vectorizers=['HuBERT', 'Wav2Vec2'],
+    #     text_vectorizers=['BERT', 'XLM-RoBERTa'],
+    # )
+    # run_experiments(
+    #     dataset='Androids_Corpus',
+    #     audio_vectorizers=['HuBERT', 'Wav2Vec2'],
+    #     text_vectorizers=['ItalianBERT', 'BERT', 'XLM-RoBERTa'],
+    # )

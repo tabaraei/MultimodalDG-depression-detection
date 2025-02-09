@@ -8,6 +8,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import os
 from dotenv import load_dotenv
+from torchinfo import summary
 
 
 class TrainEvalModel:
@@ -19,7 +20,7 @@ class TrainEvalModel:
             lstm_n_layers=1,
             lstm_hidden_dim=256,
             fc_hidden_dim=128,
-            n_epochs=100,
+            n_epochs=50,
             lr=0.001,
             reset_log_file=True
     ):
@@ -68,7 +69,7 @@ class TrainEvalModel:
                 text_vectorizer=self.text_vectorizer
             )
             accuracy, precision, recall, f1 = self.train_and_evaluate()
-            self.log(f"{'=' * 42} Test Results {'=' * 42}")
+            self.log(f"{'=' * 26} Test Results {'=' * 25}")
             self.log(f'Accuracy: {accuracy:.3f}, Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}')
 
         elif self.dataset == 'Androids_Corpus':
@@ -89,7 +90,7 @@ class TrainEvalModel:
                 accuracy, precision, recall, f1 = self.train_and_evaluate()
                 fold_metrics.append([accuracy, precision, recall, f1])
             accuracy, precision, recall, f1 = np.mean(fold_metrics, axis=0)
-            self.log(f"{'=' * 30} 5-fold Cross Validation Test Results {'=' * 30}")
+            self.log(f"{'=' * 14} 5-fold Cross Validation Test Results {'=' * 13}")
             self.log(f'Accuracy: {accuracy:.3f}, Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}')
 
     def train_and_evaluate(self):
@@ -102,6 +103,7 @@ class TrainEvalModel:
             fc_hidden_dim=self.fc_hidden_dim
         ).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
+        self.log(str(summary(self.model)))
 
         # Loop over epochs
         epochs = trange(self.n_epochs)
@@ -166,6 +168,6 @@ class TrainEvalModel:
             self.log(f'Epoch [{epoch + 1}/{self.n_epochs}]:')
             self.log(f'Training Loss: {training_loss:.3f}, Validation Loss: {test_loss:.3f}')
             self.log(f'Accuracy: {accuracy:.3f}, Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}')
-            self.log('-' * 80)
+            self.log('-' * 65)
 
         return accuracy, precision, recall, f1

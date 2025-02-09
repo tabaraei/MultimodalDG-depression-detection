@@ -31,8 +31,9 @@ class DatasetDownloader:
         elif dataset == 'Androids_Corpus':
             self.RAW_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/Androids_Corpus')
             self.DOWNLOAD_ADDRESS = os.getenv('DOWNLOAD_ADDRESS_ANDROIDS_CORPUS')
-            self.download_Androids_Corpus()
+            # self.download_Androids_Corpus()
             self.extract_transcripts()
+        print(f'Data successfully downloaded at "{self.RAW_DATA_PATH}"')
 
     def download_DAIC_WoZ(self):
         """
@@ -55,13 +56,13 @@ class DatasetDownloader:
         excluded_sessions = {342, 394, 398, 460} | {373, 444}
         selected_sessions = set(range(300, 493)) - excluded_sessions
 
-        for session in selected_sessions:
+        for session in tqdm(selected_sessions, desc='Downloading DAIC-WoZ'):
             ZIP_PATH = os.path.join(self.DOWNLOAD_ADDRESS, f'{session}_P.zip')
             response = requests.get(ZIP_PATH, stream=True)
             response.raise_for_status()
             with ZipFile(BytesIO(response.content)) as zf:
-                zf.extract(f'{session}_P_TRANSCRIPT.csv', path=self.RAW_DATA_PATH)
-                zf.extract(f'{session}_P_AUDIO.wav', path=self.RAW_DATA_PATH)
+                zf.extract(f'{session}_TRANSCRIPT.csv', path=self.RAW_DATA_PATH)
+                zf.extract(f'{session}_AUDIO.wav', path=self.RAW_DATA_PATH)
 
     def download_Androids_Corpus(self):
         os.makedirs(self.RAW_DATA_PATH, exist_ok=True)
@@ -92,12 +93,19 @@ class DatasetDownloader:
             feature_extractor=processor.feature_extractor,
             tokenizer=processor.tokenizer,
             device=device,
-            generate_kwargs={'task': 'transcribe', 'language': 'it'}
+            generate_kwargs={
+                'task': 'transcribe',
+                'language': 'it',
+                'return_timestamps': True,
+                'max_new_tokens': 128,
+                'forced_decoder_ids': None,
+            }
         )
 
         # Extract transcripts
         pattern = r'^[0-9]{2}_[CP][MF][0-9]{2}_[x0-9]$'
-        for participant in tqdm(natsorted(os.listdir(self.RAW_DATA_PATH))):
+        sorted_participants = natsorted(os.listdir(self.RAW_DATA_PATH))
+        for participant in tqdm(sorted_participants, desc='Extracting transcripts of Androids-Corpus'):
             if re.match(pattern, participant):
                 PARTICIPANT_PATH = os.path.join(self.RAW_DATA_PATH, participant)
 

@@ -18,11 +18,12 @@ class BaseDataset(Dataset, ABC):
         self.X_audio = list()
         self.X_text = list()
         self.y = list()
-        self.audio_vectorizer = AudioFeatureExtractor(model_name=audio_vectorizer)
-        self.text_vectorizer = TextFeatureExtractor(model_name=text_vectorizer)
-        self.label_transformer = LabelTransformer()
-        self.audio_feature_dim = self.audio_vectorizer.feature_dim
-        self.text_feature_dim = self.text_vectorizer.feature_dim
+        if audio_vectorizer and text_vectorizer:
+            self.audio_vectorizer = AudioFeatureExtractor(model_name=audio_vectorizer)
+            self.text_vectorizer = TextFeatureExtractor(model_name=text_vectorizer)
+            self.label_transformer = LabelTransformer()
+            self.audio_feature_dim = self.audio_vectorizer.feature_dim
+            self.text_feature_dim = self.text_vectorizer.feature_dim
 
     def cache_dataset(self, cache_name):
         os.makedirs(self.PROCESSED_DATA_PATH, exist_ok=True)
@@ -36,7 +37,7 @@ class BaseDataset(Dataset, ABC):
             X_audio, X_text, y = self.X_audio, self.X_text, self.y
             self.X_audio, self.X_text, self.y = list(), list(), list()
 
-            for idx in tqdm(range(len(y))):
+            for idx in tqdm(range(len(y)), desc=f'Caching {cache_name}'):
                 self.X_audio.append(self.audio_vectorizer(X_audio[idx]))
                 self.X_text.append(self.text_vectorizer(X_text[idx]))
                 self.y.append(self.label_transformer(y[idx]))
