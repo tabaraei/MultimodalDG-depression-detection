@@ -1,4 +1,5 @@
 from src.dataset_downloader import DatasetDownloader
+from src.dataset_loader import DAICWoZDataset, AndroidsCorpusDataset
 from src.training import TrainEvalModel
 import itertools
 
@@ -15,7 +16,10 @@ def run_experiments(dataset, audio_vectorizers, text_vectorizers):
 
 
 if __name__ == "__main__":
-    pass
+    dataset = DAICWoZDataset(train_or_test='test', audio_vectorizer='HuBERT', text_vectorizer='BERT')
+    dataset = DAICWoZDataset(train_or_test='test', audio_vectorizer='Wav2Vec2', text_vectorizer='BERT')
+    dataset = DAICWoZDataset(train_or_test='test', audio_vectorizer='HuBERT', text_vectorizer='XLM-RoBERTa')
+    dataset = DAICWoZDataset(train_or_test='test', audio_vectorizer='Wav2Vec2', text_vectorizer='XLM-RoBERTa')
     # DatasetDownloader(dataset='DAIC_WoZ')
     # DatasetDownloader(dataset='Androids_Corpus')
     # run_experiments(

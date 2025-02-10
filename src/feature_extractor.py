@@ -8,7 +8,8 @@ class AudioFeatureExtractor:
             'Wav2Vec2': 'facebook/wav2vec2-base-960h',
             'HuBERT': 'facebook/hubert-large-ls960-ft'
         }
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # self.device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cpu')
         self.model_name = models[model_name]
         self.processor = AutoProcessor.from_pretrained(self.model_name)
         self.model = AutoModel.from_pretrained(self.model_name).to(self.device)
@@ -22,7 +23,7 @@ class AudioFeatureExtractor:
             inputs = self.processor(segment, sampling_rate=self.sample_rate, return_tensors='pt', padding=True)
             inputs = {key: value.to(self.device) for key, value in inputs.items()}
             with torch.no_grad():
-                features = self.model(**inputs).last_hidden_state
+                features = self.model(**inputs).last_hidden_state.cpu()
             segments_features.append(features)
         features = torch.cat(segments_features, dim=1)
         return features
@@ -35,7 +36,8 @@ class TextFeatureExtractor:
             'ItalianBERT': 'dbmdz/bert-base-italian-cased',
             'XLM-RoBERTa': 'FacebookAI/xlm-roberta-large'
         }
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # self.device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cpu')
         self.model_name = models[model_name]
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.model = AutoModel.from_pretrained(self.model_name).to(self.device)
@@ -47,7 +49,7 @@ class TextFeatureExtractor:
             inputs = self.tokenizer(segment, return_tensors='pt', padding=True, truncation=True)
             inputs = {key: value.to(self.device) for key, value in inputs.items()}
             with torch.no_grad():
-                features = self.model(**inputs).last_hidden_state
+                features = self.model(**inputs).last_hidden_state.cpu()
             segments_features.append(features)
         features = torch.cat(segments_features, dim=1)
         return features

@@ -59,12 +59,12 @@ class TrainEvalModel:
     def run_pipeline(self):
         if self.dataset == 'DAIC_WoZ':
             self.train_dataset = DAICWoZDataset(
-                train_or_dev='train',
+                train_or_test='train',
                 audio_vectorizer=self.audio_vectorizer,
                 text_vectorizer=self.text_vectorizer
             )
             self.test_dataset = DAICWoZDataset(
-                train_or_dev='dev',
+                train_or_test='test',
                 audio_vectorizer=self.audio_vectorizer,
                 text_vectorizer=self.text_vectorizer
             )
