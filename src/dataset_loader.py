@@ -15,18 +15,15 @@ class BaseDataset(Dataset, ABC):
         load_dotenv()
         self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
         self.PROCESSED_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/processed')
-        if dataset == 'DAIC_WoZ':
-            self.DOWNLOAD_ADDRESS = os.getenv('DOWNLOAD_ADDRESS_DAIC_WOZ')
-            self.RAW_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/DAIC_WoZ')
-        elif dataset == 'Androids_Corpus':
-            self.RAW_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/Androids_Corpus')
-            self.fold = fold
-
         self.train_or_test = train_or_test
         self.SAMPLE_RATE = 16000
-        self.X_audio = list()
-        self.X_text = list()
-        self.y = list()
+        self.dataset = dataset
+        if self.dataset == 'DAIC_WoZ':
+            self.DOWNLOAD_ADDRESS = os.getenv('DOWNLOAD_ADDRESS_DAIC_WOZ')
+            self.RAW_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/DAIC_WoZ')
+        elif self.dataset == 'Androids_Corpus':
+            self.RAW_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/Androids_Corpus')
+            self.fold = fold
 
         self.participants_df, self.selected_participants, self.train_indices, self.test_indices = \
             self.select_train_test_indices()
@@ -35,32 +32,39 @@ class BaseDataset(Dataset, ABC):
             self.audio_vectorizer = AudioFeatureExtractor(model_name=audio_vectorizer)
             self.text_vectorizer = TextFeatureExtractor(model_name=text_vectorizer)
             self.label_transformer = LabelTransformer()
+
             self.audio_feature_dim = self.audio_vectorizer.feature_dim
             self.text_feature_dim = self.text_vectorizer.feature_dim
-            self.cache_dataset(cache_name=f'{dataset}_{audio_vectorizer}_{text_vectorizer}.pkl')
+
+            self.X_audio = self.load_cache(data_type='audio', name=audio_vectorizer, transformer=self.audio_vectorizer)
+            self.X_text = self.load_cache(data_type='text', name=text_vectorizer, transformer=self.text_vectorizer)
+            self.y = self.load_cache(data_type='label', name='label', transformer=self.label_transformer)
         else:
-            self.load_dataset()
+            self.X_audio = self.load_raw_data(data_type='audio')
+            self.X_text = self.load_raw_data(data_type='text')
+            self.y = self.load_raw_data(data_type='label')
         self.select_train_test_split()
 
-    def cache_dataset(self, cache_name):
+    def load_cache(self, data_type, name, transformer):
         os.makedirs(self.PROCESSED_DATA_PATH, exist_ok=True)
+        cache_name = f'{self.dataset}_{name}.pkl'
         cache_path = os.path.join(self.PROCESSED_DATA_PATH, cache_name)
+        cache_data = list()
 
-        if os.path.exists(cache_path):
-            with open(cache_path, 'rb') as f:
-                self.X_audio, self.X_text, self.y = pickle.load(f)
-        else:
-            self.load_dataset()
-            X_audio, X_text, y = self.X_audio, self.X_text, self.y
-            self.X_audio, self.X_text, self.y = list(), list(), list()
+        if not os.path.exists(cache_path):
+            raw_data = self.load_raw_data(data_type=data_type)
+            with open(cache_path, 'ab+') as f:
+                for idx in tqdm(range(len(raw_data)), desc=f'Caching {cache_name}'):
+                    pickle.dump(transformer(raw_data[idx]), f)
+            del raw_data
 
-            for idx in tqdm(range(len(y)), desc=f'Caching {cache_name}'):
-                self.X_audio.append(self.audio_vectorizer(X_audio[idx]))
-                self.X_text.append(self.text_vectorizer(X_text[idx]))
-                self.y.append(self.label_transformer(y[idx]))
-
-            with open(cache_path, 'wb') as f:
-                pickle.dump((self.X_audio, self.X_text, self.y), f)
+        with open(cache_path, 'rb') as f:
+            try:
+                while True:
+                    cache_data.append(pickle.load(f))
+            except EOFError:
+                pass
+        return cache_data
 
     def select_train_test_split(self):
         if self.train_or_test == 'train':
@@ -84,7 +88,7 @@ class BaseDataset(Dataset, ABC):
         return list(X_audio), list(X_text), list(y)
 
     @abstractmethod
-    def load_dataset(self):
+    def load_raw_data(self, data_type):
         pass
 
     @abstractmethod
@@ -104,11 +108,11 @@ class DAICWoZDataset(BaseDataset):
     def select_train_test_indices(self):
         excluded_sessions = {342, 394, 398, 460} | {373, 444}
 
-        train_df = pd.read_csv(f'{self.DOWNLOAD_ADDRESS}/train_split_Depression_AVEC2017.csv')
+        train_df = pd.read_csv(f'{os.path.join(self.RAW_DATA_PATH, "train_df.csv")}')
         train_df = train_df[~train_df['Participant_ID'].isin(excluded_sessions)]
         train_participants = train_df['Participant_ID'].tolist()
 
-        test_df = pd.read_csv(f'{self.DOWNLOAD_ADDRESS}/dev_split_Depression_AVEC2017.csv')
+        test_df = pd.read_csv(f'{os.path.join(self.RAW_DATA_PATH, "test_df.csv")}')
         test_df = test_df[~test_df['Participant_ID'].isin(excluded_sessions)]
         test_participants = test_df['Participant_ID'].tolist()
 
@@ -118,36 +122,44 @@ class DAICWoZDataset(BaseDataset):
         test_indices = [selected_participants.index(participant) for participant in test_participants]
         return participants_df, selected_participants, train_indices, test_indices
 
-    def load_dataset(self):
+    def load_raw_data(self, data_type):
         """
         [AMHD-GPT]
         The score after filling out the PHQ-8 questionnaire from file 409 is 10. This was
         wrongly listed as not depressive. For this reason, this label is corrected manually.
         """
+        raw_data = list()
         for participant in self.selected_participants:
-            text_path = os.path.join(self.RAW_DATA_PATH, f'{participant}_TRANSCRIPT.csv')
-            interview_df = pd.read_csv(text_path, delimiter='\t')
-            interview_df['group'] = (interview_df['speaker'] != interview_df['speaker'].shift()).cumsum()
-            interview_df = interview_df.dropna().groupby('group').agg({
-                'start_time': 'min',
-                'stop_time': 'max',
-                'speaker': 'first',
-                'value': '. '.join
-            }).reset_index(drop=True)
-            interview_df = interview_df[interview_df['speaker'] == 'Participant'].copy()
-            text_segments = interview_df['value'].tolist()
-            self.X_text.append(text_segments)
+            if data_type == 'label':
+                PHQ8_score = self.participants_df.loc[
+                    self.participants_df['Participant_ID'] == participant, 'PHQ8_Score']
+                y = (PHQ8_score >= 10).astype(int).item()
+                raw_data.append(y)
+            else:
+                text_path = os.path.join(self.RAW_DATA_PATH, f'{participant}_TRANSCRIPT.csv')
+                interview_df = pd.read_csv(text_path, delimiter='\t')
+                interview_df['group'] = (interview_df['speaker'] != interview_df['speaker'].shift()).cumsum()
+                interview_df = interview_df.dropna().groupby('group').agg({
+                    'start_time': 'min',
+                    'stop_time': 'max',
+                    'speaker': 'first',
+                    'value': '. '.join
+                }).reset_index(drop=True)
+                interview_df = interview_df[interview_df['speaker'] == 'Participant'].copy()
 
-            audio_path = os.path.join(self.RAW_DATA_PATH, f'{participant}_AUDIO.wav')
-            waveform, _ = librosa.load(audio_path, sr=self.SAMPLE_RATE)
-            interview_df['start_time'] = (interview_df['start_time'] * self.SAMPLE_RATE).astype(int)
-            interview_df['stop_time'] = (interview_df['stop_time'] * self.SAMPLE_RATE).astype(int)
-            audio_segments = [waveform[segment.start_time:segment.stop_time] for segment in interview_df.itertuples()]
-            self.X_audio.append(audio_segments)
+                if data_type == 'text':
+                    text_segments = interview_df['value'].tolist()
+                    raw_data.append(text_segments)
+                elif data_type == 'audio':
+                    audio_path = os.path.join(self.RAW_DATA_PATH, f'{participant}_AUDIO.wav')
+                    waveform, _ = librosa.load(audio_path, sr=self.SAMPLE_RATE)
+                    interview_df['start_time'] = (interview_df['start_time'] * self.SAMPLE_RATE).astype(int)
+                    interview_df['stop_time'] = (interview_df['stop_time'] * self.SAMPLE_RATE).astype(int)
+                    audio_segments = [waveform[segment.start_time:segment.stop_time] for segment in
+                                      interview_df.itertuples()]
+                    raw_data.append(audio_segments)
 
-            PHQ8_score = self.participants_df.loc[self.participants_df['Participant_ID'] == participant, 'PHQ8_Score']
-            y = (PHQ8_score >= 10).astype(int).item()
-            self.y.append(y)
+        return raw_data
 
 
 class AndroidsCorpusDataset(BaseDataset):
@@ -160,7 +172,7 @@ class AndroidsCorpusDataset(BaseDataset):
             fold=fold
         )
 
-    def select_train_test_split(self):
+    def select_train_test_indices(self):
         participants_df = None
         folds_path = os.path.join(self.RAW_DATA_PATH, 'fold-lists.csv')
         folds_df = pd.read_csv(folds_path)
@@ -175,21 +187,29 @@ class AndroidsCorpusDataset(BaseDataset):
         test_indices = [selected_participants.index(participant) for participant in test_participants]
         return participants_df, selected_participants, train_indices, test_indices
 
-    def load_dataset(self):
+    def load_raw_data(self, data_type):
+        raw_data = list()
         for participant in self.selected_participants:
-            depressed = 1 if participant[3] == 'P' else 0
-            audio_segments, text_segments = list(), list()
             participant_path = os.path.join(self.RAW_DATA_PATH, participant)
 
-            for data in natsorted(os.listdir(participant_path)):
-                data_path = os.path.join(participant_path, data)
-                if data.endswith('.wav'):
-                    waveform, _ = librosa.load(data_path, sr=self.SAMPLE_RATE)
-                    audio_segments.append(waveform)
-                elif data.endswith('.txt'):
-                    with open(data_path, 'r', encoding='utf-8') as f:
-                        text_segments.append(f.read())
+            if data_type == 'label':
+                y = 1 if participant[3] == 'P' else 0
+                raw_data.append(y)
 
-            self.X_audio.append(audio_segments)
-            self.X_text.append(text_segments)
-            self.y.append(depressed)
+            elif data_type == 'text':
+                text_segments = [
+                    open(os.path.join(participant_path, data), 'r', encoding='utf-8').read()
+                    for data in natsorted(os.listdir(participant_path))
+                    if data.endswith('.txt')
+                ]
+                raw_data.append(text_segments)
+
+            elif data_type == 'audio':
+                audio_segments = [
+                    librosa.load(os.path.join(participant_path, data), sr=self.SAMPLE_RATE)[0]
+                    for data in natsorted(os.listdir(participant_path))
+                    if data.endswith('.wav')
+                ]
+                raw_data.append(audio_segments)
+
+        return raw_data

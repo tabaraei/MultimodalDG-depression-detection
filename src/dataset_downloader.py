@@ -10,6 +10,7 @@ from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 import torch
 import re
 from natsort import natsorted
+import pandas as pd
 
 
 class DatasetDownloader:
@@ -63,6 +64,12 @@ class DatasetDownloader:
             with ZipFile(BytesIO(response.content)) as zf:
                 zf.extract(f'{session}_TRANSCRIPT.csv', path=self.RAW_DATA_PATH)
                 zf.extract(f'{session}_AUDIO.wav', path=self.RAW_DATA_PATH)
+
+        train_df = pd.read_csv(f'{self.DOWNLOAD_ADDRESS}/train_split_Depression_AVEC2017.csv')
+        train_df.to_csv(f'{os.path.join(self.RAW_DATA_PATH, "train_df.csv")}', index=False)
+
+        test_df = pd.read_csv(f'{self.DOWNLOAD_ADDRESS}/dev_split_Depression_AVEC2017.csv')
+        test_df.to_csv(f'{os.path.join(self.RAW_DATA_PATH, "test_df.csv")}', index=False)
 
     def download_Androids_Corpus(self):
         os.makedirs(self.RAW_DATA_PATH, exist_ok=True)

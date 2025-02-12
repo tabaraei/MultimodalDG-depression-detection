@@ -9,6 +9,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import os
 from dotenv import load_dotenv
 from torchinfo import summary
+from datetime import datetime
 
 
 class TrainEvalModel:
@@ -32,7 +33,7 @@ class TrainEvalModel:
         self.lstm_hidden_dim = lstm_hidden_dim
         self.fc_hidden_dim = fc_hidden_dim
         self.lr = lr
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.criterion = nn.BCEWithLogitsLoss()
         self.create_log_file(reset_log_file)
         self.run_pipeline()
@@ -57,6 +58,7 @@ class TrainEvalModel:
             f.write(text + '\n')
 
     def run_pipeline(self):
+        start_time = datetime.now()
         if self.dataset == 'DAIC_WoZ':
             self.train_dataset = DAICWoZDataset(
                 train_or_test='train',
@@ -68,6 +70,7 @@ class TrainEvalModel:
                 audio_vectorizer=self.audio_vectorizer,
                 text_vectorizer=self.text_vectorizer
             )
+
             accuracy, precision, recall, f1 = self.train_and_evaluate()
             self.log(f"{'=' * 26} Test Results {'=' * 25}")
             self.log(f'Accuracy: {accuracy:.3f}, Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}')
@@ -92,6 +95,9 @@ class TrainEvalModel:
             accuracy, precision, recall, f1 = np.mean(fold_metrics, axis=0)
             self.log(f"{'=' * 14} 5-fold Cross Validation Test Results {'=' * 13}")
             self.log(f'Accuracy: {accuracy:.3f}, Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}')
+
+        end_time = datetime.now()
+        print(f'Pipeline Execution Time: {str(end_time - start_time).split('.')[0]}')
 
     def train_and_evaluate(self):
         # Model initialization
@@ -118,7 +124,7 @@ class TrainEvalModel:
 
                 # Forward pass
                 self.optimizer.zero_grad()
-                output = self.model(x_audio, x_text).squeeze(1)
+                output = self.model(x_audio, x_text).squeeze(1).cpu()
                 loss = self.criterion(output, y)
 
                 # Backward pass and optimization
@@ -145,7 +151,7 @@ class TrainEvalModel:
                     x_text = x_text.to(self.device)
 
                     # Forward pass and collect predictions
-                    output = self.model(x_audio, x_text).squeeze(1)
+                    output = self.model(x_audio, x_text).squeeze(1).cpu()
                     loss = self.criterion(output, y)
                     pred = torch.sigmoid(output).round()
                     predictions.append(pred.item())
