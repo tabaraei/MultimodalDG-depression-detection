@@ -33,7 +33,7 @@ class TrainEvalModel:
         self.lstm_hidden_dim = lstm_hidden_dim
         self.fc_hidden_dim = fc_hidden_dim
         self.lr = lr
-        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
         self.criterion = nn.BCEWithLogitsLoss()
         self.create_log_file(reset_log_file)
         self.run_pipeline()

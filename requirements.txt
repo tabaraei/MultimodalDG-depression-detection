@@ -11,3 +11,5 @@ accelerate
 natsort
 torchinfo
 scikit-learn
+matplotlib
+seaborn

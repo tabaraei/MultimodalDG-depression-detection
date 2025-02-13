@@ -19,20 +19,20 @@ if __name__ == "__main__":
     # DatasetDownloader(dataset='DAIC_WoZ')
     # DatasetDownloader(dataset='Androids_Corpus')
 
-    DAICWoZDataset(train_or_test='test', audio_vectorizer='HuBERT', text_vectorizer='BERT')
-    DAICWoZDataset(train_or_test='test', audio_vectorizer='Wav2Vec2', text_vectorizer='XLM-RoBERTa')
-    AndroidsCorpusDataset(fold=0, train_or_test='test', audio_vectorizer='HuBERT', text_vectorizer='ItalianBERT')
-    AndroidsCorpusDataset(fold=0, train_or_test='test', audio_vectorizer='Wav2Vec2', text_vectorizer='BERT')
-    AndroidsCorpusDataset(fold=0, train_or_test='test', audio_vectorizer='Wav2Vec2', text_vectorizer='XLM-RoBERTa')
+    # DAICWoZDataset(train_or_test='test', audio_vectorizer='HuBERT', text_vectorizer='BERT')
+    # DAICWoZDataset(train_or_test='test', audio_vectorizer='Wav2Vec2', text_vectorizer='XLM-RoBERTa')
+    # AndroidsCorpusDataset(fold=0, train_or_test='test', audio_vectorizer='HuBERT', text_vectorizer='ItalianBERT')
+    # AndroidsCorpusDataset(fold=0, train_or_test='test', audio_vectorizer='Wav2Vec2', text_vectorizer='BERT')
+    # AndroidsCorpusDataset(fold=0, train_or_test='test', audio_vectorizer='Wav2Vec2', text_vectorizer='XLM-RoBERTa')
 
-    # run_experiments(
-    #     dataset='DAIC_WoZ',
-    #     audio_vectorizers=['HuBERT', 'Wav2Vec2'],
-    #     text_vectorizers=['BERT', 'XLM-RoBERTa'],
-    # )
+    run_experiments(
+        dataset='DAIC_WoZ',
+        audio_vectorizers=['HuBERT', 'Wav2Vec2'],
+        text_vectorizers=['BERT', 'XLM-RoBERTa'],
+    )
 
-    # run_experiments(
-    #     dataset='Androids_Corpus',
-    #     audio_vectorizers=['HuBERT', 'Wav2Vec2'],
-    #     text_vectorizers=['ItalianBERT', 'BERT', 'XLM-RoBERTa'],
-    # )
+    run_experiments(
+        dataset='Androids_Corpus',
+        audio_vectorizers=['HuBERT', 'Wav2Vec2'],
+        text_vectorizers=['ItalianBERT', 'BERT', 'XLM-RoBERTa'],
+    )

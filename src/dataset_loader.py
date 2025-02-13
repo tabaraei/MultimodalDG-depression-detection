@@ -54,16 +54,13 @@ class BaseDataset(Dataset, ABC):
         if not os.path.exists(cache_path):
             raw_data = self.load_raw_data(data_type=data_type)
             with open(cache_path, 'ab+') as f:
-                for idx in tqdm(range(len(raw_data)), desc=f'Caching {cache_name}'):
+                for idx in tqdm(range(len(self.selected_participants)), desc=f'Caching {cache_name}'):
                     pickle.dump(transformer(raw_data[idx]), f)
             del raw_data
 
         with open(cache_path, 'rb') as f:
-            try:
-                while True:
-                    cache_data.append(pickle.load(f))
-            except EOFError:
-                pass
+            for idx in range(len(self.selected_participants)):
+                cache_data.append(pickle.load(f))
         return cache_data
 
     def select_train_test_split(self):
