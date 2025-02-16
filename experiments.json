@@ -1,0 +1,9 @@
+{
+  "AC_Wav_RoB": {
+    "dataset": "Androids_Corpus",
+    "audio_vectorizer": "Wav2Vec2",
+    "text_vectorizer": "XLM-RoBERTa",
+    "lr": 0.001,
+    "device": "cuda:0"
+  }
+}

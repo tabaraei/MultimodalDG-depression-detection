@@ -1,5 +1,6 @@
 from src.model import MultimodalClassifier
 from src.dataset_loader import DAICWoZDataset, AndroidsCorpusDataset
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 import torch.nn as nn
 import torch.optim as optim
 import torch
@@ -23,7 +24,8 @@ class TrainEvalModel:
             fc_hidden_dim=128,
             n_epochs=50,
             lr=0.001,
-            reset_log_file=True
+            reset_log_file=True,
+            device='cuda:0' if torch.cuda.is_available() else 'cpu'
     ):
         self.dataset = dataset
         self.n_epochs = n_epochs
@@ -33,7 +35,7 @@ class TrainEvalModel:
         self.lstm_hidden_dim = lstm_hidden_dim
         self.fc_hidden_dim = fc_hidden_dim
         self.lr = lr
-        self.device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device(device)
         self.criterion = nn.BCEWithLogitsLoss()
         self.create_log_file(reset_log_file)
         self.run_pipeline()
@@ -172,7 +174,7 @@ class TrainEvalModel:
             f1 = f1_score(ground_truths, predictions, zero_division=0)
 
             self.log(f'Epoch [{epoch + 1}/{self.n_epochs}]:')
-            self.log(f'Training Loss: {training_loss:.3f}, Validation Loss: {test_loss:.3f}')
+            self.log(f'Training Loss: {training_loss:.3f}, Test Loss: {test_loss:.3f}')
             self.log(f'Accuracy: {accuracy:.3f}, Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}')
             self.log('-' * 65)
 

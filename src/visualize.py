@@ -38,7 +38,7 @@ class Visualization:
         df_DAIC = pd.DataFrame({'TSNE_1': X_DAIC[:, 0], 'TSNE_2': X_DAIC[:, 1], 'Label': y_DAIC, 'Dataset': 'DAIC_WoZ'})
         df_AC = pd.DataFrame({'TSNE_1': X_AC[:, 0], 'TSNE_2': X_AC[:, 1], 'Label': y_AC, 'Dataset': 'Androids_Corpus'})
 
-        plt.figure(figsize=(8, 4))
+        fig = plt.figure(figsize=(8, 4))
         common_args = {
             'x': 'TSNE_1',
             'y': 'TSNE_2',
@@ -62,4 +62,4 @@ class Visualization:
         legend = plt.legend()
         for i, text in enumerate(legend.texts):
             text.set_text(new_legends[i])
-        plt.show()
+        return fig
