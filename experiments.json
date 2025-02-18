@@ -2,8 +2,15 @@
   "AC_Wav_RoB": {
     "dataset": "Androids_Corpus",
     "audio_vectorizer": "Wav2Vec2",
-    "text_vectorizer": "XLM-RoBERTa",
-    "lr": 0.001,
+    "text_vectorizer": "XLMRoBERTa",
+    "lr": 0.0005,
     "device": "cuda:0"
+  },
+  "AC_Wav_ITB": {
+    "dataset": "Androids_Corpus",
+    "audio_vectorizer": "Wav2Vec2",
+    "text_vectorizer": "ItalianBERT",
+    "lr": 0.0005,
+    "device": "cuda:1"
   }
 }

@@ -4,6 +4,7 @@ import pandas as pd
 from dotenv import load_dotenv
 import librosa
 from natsort import natsorted
+from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 from tqdm.auto import tqdm
 import pickle
@@ -11,11 +12,11 @@ from abc import ABC, abstractmethod
 
 
 class BaseDataset(Dataset, ABC):
-    def __init__(self, dataset, train_or_test, audio_vectorizer=None, text_vectorizer=None, fold=None):
+    def __init__(self, dataset, train_val_test, audio_vectorizer=None, text_vectorizer=None, fold=None):
         load_dotenv()
         self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
         self.PROCESSED_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/processed')
-        self.train_or_test = train_or_test
+        self.train_val_test = train_val_test
         self.SAMPLE_RATE = 16000
         self.dataset = dataset
         if self.dataset == 'DAIC_WoZ':
@@ -25,8 +26,8 @@ class BaseDataset(Dataset, ABC):
             self.RAW_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/Androids_Corpus')
             self.fold = fold
 
-        self.participants_df, self.selected_participants, self.train_indices, self.test_indices = \
-            self.select_train_test_indices()
+        self.participants_df, self.selected_participants, self.train_indices, self.val_indices, self.test_indices = \
+            self.select_indices()
 
         if audio_vectorizer and text_vectorizer:
             self.audio_vectorizer = AudioFeatureExtractor(model_name=audio_vectorizer)
@@ -64,14 +65,16 @@ class BaseDataset(Dataset, ABC):
         return cache_data
 
     def select_train_test_split(self):
-        if self.train_or_test == 'train':
-            self.X_audio = [self.X_audio[i] for i in self.train_indices]
-            self.X_text = [self.X_text[i] for i in self.train_indices]
-            self.y = [self.y[i] for i in self.train_indices]
-        elif self.train_or_test == 'test':
-            self.X_audio = [self.X_audio[i] for i in self.test_indices]
-            self.X_text = [self.X_text[i] for i in self.test_indices]
-            self.y = [self.y[i] for i in self.test_indices]
+        if self.train_val_test == 'train':
+            indices = self.train_indices
+        elif self.train_val_test == 'val':
+            indices = self.val_indices
+        elif self.train_val_test == 'test':
+            indices = self.test_indices
+
+        self.X_audio = [self.X_audio[i] for i in indices]
+        self.X_text = [self.X_text[i] for i in indices]
+        self.y = [self.y[i] for i in indices]
 
     def __len__(self):
         return len(self.y)
@@ -89,35 +92,42 @@ class BaseDataset(Dataset, ABC):
         pass
 
     @abstractmethod
-    def select_train_test_indices(self):
+    def select_indices(self):
         pass
 
 
 class DAICWoZDataset(BaseDataset):
-    def __init__(self, train_or_test='train', audio_vectorizer=None, text_vectorizer=None):
+    def __init__(self, train_val_test='train', audio_vectorizer=None, text_vectorizer=None):
         super().__init__(
             dataset='DAIC_WoZ',
-            train_or_test=train_or_test,
+            train_val_test=train_val_test,
             audio_vectorizer=audio_vectorizer,
             text_vectorizer=text_vectorizer
         )
 
-    def select_train_test_indices(self):
+    def select_indices(self):
         excluded_sessions = {342, 394, 398, 460} | {373, 444}
 
         train_df = pd.read_csv(f'{os.path.join(self.RAW_DATA_PATH, "train_df.csv")}')
         train_df = train_df[~train_df['Participant_ID'].isin(excluded_sessions)]
         train_participants = train_df['Participant_ID'].tolist()
 
+        val_df = pd.read_csv(f'{os.path.join(self.RAW_DATA_PATH, "val_df.csv")}')
+        val_df = val_df[~val_df['Participant_ID'].isin(excluded_sessions)]
+        val_participants = val_df['Participant_ID'].tolist()
+
         test_df = pd.read_csv(f'{os.path.join(self.RAW_DATA_PATH, "test_df.csv")}')
         test_df = test_df[~test_df['Participant_ID'].isin(excluded_sessions)]
+        test_df.rename(columns={'PHQ_Score': 'PHQ8_Score', 'PHQ_Binary': 'PHQ8_Binary'}, inplace=True)
         test_participants = test_df['Participant_ID'].tolist()
 
-        participants_df = pd.concat([train_df, test_df], axis=0, ignore_index=True).sort_values(by='Participant_ID')
+        participants_df = pd.concat([train_df, val_df, test_df], ignore_index=True).sort_values(by='Participant_ID')
         selected_participants = participants_df['Participant_ID'].tolist()
         train_indices = [selected_participants.index(participant) for participant in train_participants]
+        val_indices = [selected_participants.index(participant) for participant in val_participants]
         test_indices = [selected_participants.index(participant) for participant in test_participants]
-        return participants_df, selected_participants, train_indices, test_indices
+
+        return participants_df, selected_participants, train_indices, val_indices, test_indices
 
     def load_raw_data(self, data_type):
         """
@@ -160,16 +170,16 @@ class DAICWoZDataset(BaseDataset):
 
 
 class AndroidsCorpusDataset(BaseDataset):
-    def __init__(self, fold=0, train_or_test='train', audio_vectorizer=None, text_vectorizer=None):
+    def __init__(self, fold=0, train_val_test='train', audio_vectorizer=None, text_vectorizer=None):
         super().__init__(
             dataset='Androids_Corpus',
-            train_or_test=train_or_test,
+            train_val_test=train_val_test,
             audio_vectorizer=audio_vectorizer,
             text_vectorizer=text_vectorizer,
             fold=fold
         )
 
-    def select_train_test_indices(self):
+    def select_indices(self):
         participants_df = None
         folds_path = os.path.join(self.RAW_DATA_PATH, 'fold-lists.csv')
         folds_df = pd.read_csv(folds_path)
@@ -179,10 +189,19 @@ class AndroidsCorpusDataset(BaseDataset):
         train_participants = natsorted(folds_df.drop(index=self.fold).stack().dropna().tolist())
         test_participants = natsorted(folds_df.iloc[self.fold].dropna().tolist())
 
-        selected_participants = natsorted(train_participants + test_participants)
+        train_labels = [1 if p[3] == 'P' else 0 for p in train_participants]
+        train_participants, val_participants, _, _ = train_test_split(
+            train_participants, train_labels, test_size=0.2, stratify=train_labels, random_state=42
+        )
+        train_participants = natsorted(train_participants)
+        val_participants = natsorted(val_participants)
+
+        selected_participants = natsorted(train_participants + val_participants + test_participants)
         train_indices = [selected_participants.index(participant) for participant in train_participants]
+        val_indices = [selected_participants.index(participant) for participant in val_participants]
         test_indices = [selected_participants.index(participant) for participant in test_participants]
-        return participants_df, selected_participants, train_indices, test_indices
+
+        return participants_df, selected_participants, train_indices, val_indices, test_indices
 
     def load_raw_data(self, data_type):
         raw_data = list()

@@ -32,7 +32,7 @@ class DatasetDownloader:
         elif dataset == 'Androids_Corpus':
             self.RAW_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/Androids_Corpus')
             self.DOWNLOAD_ADDRESS = os.getenv('DOWNLOAD_ADDRESS_ANDROIDS_CORPUS')
-            # self.download_Androids_Corpus()
+            self.download_Androids_Corpus()
             self.extract_transcripts()
         print(f'Data successfully downloaded at "{self.RAW_DATA_PATH}"')
 
@@ -68,7 +68,10 @@ class DatasetDownloader:
         train_df = pd.read_csv(f'{self.DOWNLOAD_ADDRESS}/train_split_Depression_AVEC2017.csv')
         train_df.to_csv(f'{os.path.join(self.RAW_DATA_PATH, "train_df.csv")}', index=False)
 
-        test_df = pd.read_csv(f'{self.DOWNLOAD_ADDRESS}/dev_split_Depression_AVEC2017.csv')
+        val_df = pd.read_csv(f'{self.DOWNLOAD_ADDRESS}/dev_split_Depression_AVEC2017.csv')
+        val_df.to_csv(f'{os.path.join(self.RAW_DATA_PATH, "val_df.csv")}', index=False)
+
+        test_df = pd.read_csv(f'{self.DOWNLOAD_ADDRESS}/full_test_split.csv')
         test_df.to_csv(f'{os.path.join(self.RAW_DATA_PATH, "test_df.csv")}', index=False)
 
     def download_Androids_Corpus(self):

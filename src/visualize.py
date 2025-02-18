@@ -8,15 +8,17 @@ from sklearn.manifold import TSNE
 
 
 class Visualization:
-    def t_SNE_distributions(self, audio_vectorizer, text_vectorizer, train_or_test='train', fold=0):
+
+    @staticmethod
+    def t_SNE_distributions(audio_vectorizer, text_vectorizer, train_val_test='train', fold=0):
         DAIC_dataset = DAICWoZDataset(
-            train_or_test=train_or_test,
+            train_val_test=train_val_test,
             audio_vectorizer=audio_vectorizer,
             text_vectorizer=text_vectorizer
         )
         AC_dataset = AndroidsCorpusDataset(
             fold=fold,
-            train_or_test=train_or_test,
+            train_val_test=train_val_test,
             audio_vectorizer=audio_vectorizer,
             text_vectorizer=text_vectorizer
         )
