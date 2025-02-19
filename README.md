@@ -10,6 +10,9 @@ pip install -r requirements.txt
 python3 src/data/dataset_loader.py
 ```
 
+To use the TensorBoard, run `tensorboard --logdir "runs" --port 6009 --host=0.0.0.0` on the server.
+Then, access the board on local host at `http://159.149.133.153:6009/`:
+
 Create a `.env` file at the project root, and add the following details to the file:
 
 ```

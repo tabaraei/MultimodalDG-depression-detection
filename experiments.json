@@ -1,4 +1,11 @@
 {
+  "AC_HuB_RoB": {
+    "dataset": "Androids_Corpus",
+    "audio_vectorizer": "HuBERT",
+    "text_vectorizer": "XLMRoBERTa",
+    "lr": 0.001,
+    "device": "cuda:0"
+  },
   "AC_Wav_RoB": {
     "dataset": "Androids_Corpus",
     "audio_vectorizer": "Wav2Vec2",

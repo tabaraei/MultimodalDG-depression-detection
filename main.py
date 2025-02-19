@@ -30,7 +30,7 @@ def main(download, vectorize, run_all_experiments, experiment):
     if run_all_experiments:
         dataset = run_all_experiments
         audio_vectorizers = ['HuBERT', 'Wav2Vec2']
-        text_vectorizers = ['ItalianBERT', 'BERT', 'XLM-RoBERTa']
+        text_vectorizers = ['ItalianBERT', 'BERT', 'XLMRoBERTa']
         for audio_vectorizer, text_vectorizer in product(audio_vectorizers, text_vectorizers):
             TrainEvalModel(
                 dataset=dataset,

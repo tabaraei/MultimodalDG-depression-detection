@@ -18,7 +18,6 @@ class MultimodalClassifier(nn.Module):
 
     def __init__(self, audio_feature_dim, text_feature_dim, lstm_hidden_dim=256, lstm_n_layers=1, fc_hidden_dim=128):
         super().__init__()
-        # torch.backends.cudnn.enabled = False
         self.audio_feature_dim = audio_feature_dim
         self.text_feature_dim = text_feature_dim
 

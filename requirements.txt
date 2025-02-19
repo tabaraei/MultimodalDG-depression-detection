@@ -1,5 +1,6 @@
 torch
 torchinfo
+tensorboard
 transformers
 datasets[audio]
 librosa
