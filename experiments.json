@@ -1,23 +1,24 @@
 {
+  "DAIC_HuB_RoB": {
+    "dataset": "DAIC_WoZ",
+    "audio_vectorizer": "HuBERT",
+    "text_vectorizer": "XLMRoBERTa",
+    "lr": 0.005,
+    "weight_decay": 5e-4,
+    "scheduler_name": "OneCycleLR",
+    "patience": 6,
+    "n_epochs": 30,
+    "device": "cuda:0"
+  },
   "AC_HuB_RoB": {
     "dataset": "Androids_Corpus",
     "audio_vectorizer": "HuBERT",
     "text_vectorizer": "XLMRoBERTa",
-    "lr": 0.001,
-    "device": "cuda:0"
-  },
-  "AC_Wav_RoB": {
-    "dataset": "Androids_Corpus",
-    "audio_vectorizer": "Wav2Vec2",
-    "text_vectorizer": "XLMRoBERTa",
     "lr": 0.0005,
+    "weight_decay": 1e-6,
+    "scheduler_name": "StepLR",
+    "patience": 4,
+    "n_epochs": 50,
     "device": "cuda:0"
-  },
-  "AC_Wav_ITB": {
-    "dataset": "Androids_Corpus",
-    "audio_vectorizer": "Wav2Vec2",
-    "text_vectorizer": "ItalianBERT",
-    "lr": 0.0005,
-    "device": "cuda:1"
   }
 }

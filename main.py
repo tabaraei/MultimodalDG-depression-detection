@@ -51,7 +51,7 @@ if __name__ == "__main__":
     This file can be run directly from the command line:
         1- Download the dataset (first run only): python3 main.py --download
         2- Vectorize the dataset (first run only): python3 main.py --vectorize
-        3- Run specific experiment defined in `experiments.json`: python3 main.py --experiment "AC_Wav_RoB"
+        3- Run specific experiment defined in `experiments.json`: python3 main.py --experiment "DAIC_HuB_RoB"
         4- Run all experiments: 
             - python3 main.py --run_all_experiments "DAIC_WoZ"
             - python3 main.py --run_all_experiments "Androids_Corpus"

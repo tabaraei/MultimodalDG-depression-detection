@@ -49,6 +49,9 @@ class TrainEvalModel:
             lr=0.001,
             reset_log_file=True,
             reset_tensorboard=True,
+            weight_decay=1e-6,
+            scheduler_name='StepLR',
+            patience=4,
             device='cuda:0' if torch.cuda.is_available() else 'cpu'
     ):
         load_dotenv()
@@ -74,6 +77,9 @@ class TrainEvalModel:
         self.lstm_hidden_dim = lstm_hidden_dim
         self.fc_hidden_dim = fc_hidden_dim
         self.lr = lr
+        self.weight_decay = weight_decay
+        self.scheduler_name = scheduler_name
+        self.patience = patience
         self.device = torch.device(device)
         self.run_pipeline()
 
@@ -163,11 +169,19 @@ class TrainEvalModel:
             fc_hidden_dim=self.fc_hidden_dim
         ).to(self.device)
         self.criterion = nn.BCEWithLogitsLoss()
-        self.optimizer = optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=1e-6)
-        self.scheduler = StepLR(self.optimizer, step_size=3, gamma=0.5)
-        self.stopper = EarlyStopping(patience=4, epsilon=1e-2)
+        self.optimizer = optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        self.stopper = EarlyStopping(patience=self.patience, epsilon=1e-2)
         self.log(str(summary(self.model)), print_to_console=False)
         self.tensorboard_add_model_graph()
+        if self.scheduler_name == 'StepLR':
+            self.scheduler = StepLR(self.optimizer, step_size=3, gamma=0.5)
+        elif self.scheduler_name == 'OneCycleLR':
+            self.scheduler = OneCycleLR(
+                optimizer=self.optimizer,
+                max_lr=self.lr,
+                epochs=self.n_epochs,
+                steps_per_epoch=len(self.train_dataset)
+            )
 
         # ------------------------------------------- Training -------------------------------------------
         progressbar = trange(self.n_epochs)
@@ -192,7 +206,8 @@ class TrainEvalModel:
             self.log('-' * 65)
 
             # Change the learning rate according to the scheduler, check conditions for early stopping
-            self.scheduler.step()
+            if self.scheduler_name != 'OneCycleLR':
+                self.scheduler.step()
             self.stopper(train_loss, val_loss)
             if self.stopper.early_stop:
                 self.log('Early stopping was triggered!')
@@ -253,6 +268,8 @@ class TrainEvalModel:
                 loss.backward()
                 gradient_norm += self.compute_gradient_norm()
                 self.optimizer.step()
+                if self.scheduler_name == 'OneCycleLR':
+                    self.scheduler.step()
 
         if backward_pass:
             self.writer.add_scalar(tag='Gradient Norm', scalar_value=gradient_norm, global_step=epoch)

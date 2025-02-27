@@ -5,9 +5,50 @@ import pandas as pd
 import numpy as np
 import torch
 from sklearn.manifold import TSNE
+from dotenv import load_dotenv
+from tqdm.auto import tqdm
+import os
+import librosa
+import re
 
 
 class Visualization:
+    def __init__(self):
+        load_dotenv()
+        self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
+        self.SAMPLE_RATE = 16000
+        self.DAIC_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/DAIC_WoZ')
+        self.AC_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/Androids_Corpus')
+
+    def waveform_length_histogram(self, dataset):
+        waveform_lengths = list()
+
+        if dataset == 'DAIC_WoZ':
+            for file in tqdm(os.listdir(self.DAIC_DATA_PATH)):
+                if file.endswith('.wav'):
+                    AUDIO_PATH = os.path.join(self.DAIC_DATA_PATH, file)
+                    waveform, sr = librosa.load(AUDIO_PATH, sr=self.SAMPLE_RATE)
+                    waveform_length = round(len(waveform) / (self.SAMPLE_RATE * 60))
+                    waveform_lengths.append(waveform_length)
+
+        elif dataset == 'Androids_Corpus':
+            pattern = r'^[0-9]{2}_[CP][MF][0-9]{2}_[x0-9]$'
+            for folder in tqdm(os.listdir(self.AC_DATA_PATH)):
+                if re.match(pattern, folder):
+                    waveform_length = 0
+                    FOLDER_PATH = os.path.join(self.AC_DATA_PATH, folder)
+                    for file in os.listdir(FOLDER_PATH):
+                        if file.endswith('.wav'):
+                            AUDIO_PATH = os.path.join(FOLDER_PATH, file)
+                            waveform, sr = librosa.load(AUDIO_PATH, sr=self.SAMPLE_RATE)
+                            waveform_length += len(waveform)
+                    waveform_length /= (self.SAMPLE_RATE * 60)
+                    waveform_lengths.append(waveform_length)
+
+        fig = plt.figure(figsize=(8, 4))
+        ax = sns.histplot(waveform_lengths, bins='auto', kde=True)
+        ax.set(title=f'{dataset} Waveform Length Histogram', xlabel='Minutes', ylabel='Frequency')
+        return fig
 
     @staticmethod
     def t_SNE_distributions(audio_vectorizer, text_vectorizer, train_val_test='train', fold=0):
