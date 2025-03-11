@@ -1,7 +1,7 @@
 from src.model import MultimodalClassifier
 from src.dataset_loader import DAICWoZDataset, AndroidsCorpusDataset
 from torch.utils.tensorboard import SummaryWriter
-from torch.optim.lr_scheduler import StepLR, OneCycleLR
+from torch.optim.lr_scheduler import StepLR
 import torch.nn as nn
 import torch.optim as optim
 import torch
@@ -40,23 +40,28 @@ class TrainEvalModel:
     def __init__(
             self,
             dataset,
+            modality,
             audio_vectorizer,
             text_vectorizer,
-            lstm_n_layers=1,
-            lstm_hidden_dim=256,
-            fc_hidden_dim=128,
-            n_epochs=50,
-            lr=0.001,
+            audio_lstm_hidden_dim,
+            text_lstm_hidden_dim,
+            fc_hidden_dim,
+            lr,
+            weight_decay,
+            scheduler_step_size,
+            scheduler_gamma,
+            patience,
+            n_epochs,
+            device,
             reset_log_file=True,
-            reset_tensorboard=True,
-            weight_decay=1e-6,
-            scheduler_name='StepLR',
-            patience=4,
-            device='cuda:0' if torch.cuda.is_available() else 'cpu'
+            reset_tensorboard=True
     ):
         load_dotenv()
         self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
-        self.FILE_NAME = f'{dataset}_{audio_vectorizer}_{text_vectorizer}_{lstm_hidden_dim}_{fc_hidden_dim}'
+        self.FILE_NAME = (
+            f'{dataset}_{modality}_{audio_vectorizer}_{text_vectorizer}_'
+            f'{audio_lstm_hidden_dim}_{text_lstm_hidden_dim}_{fc_hidden_dim}'
+        )
 
         LOG_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'logs')
         os.makedirs(LOG_PATH, exist_ok=True)
@@ -69,18 +74,21 @@ class TrainEvalModel:
         self.reset_tensorboard = reset_tensorboard
 
         self.dataset = dataset
-        self.train_dataset, self.val_dataset, self.test_dataset = None, None, None
-        self.n_epochs = n_epochs
+        self.modality = modality
         self.audio_vectorizer = audio_vectorizer
         self.text_vectorizer = text_vectorizer
-        self.lstm_n_layers = lstm_n_layers
-        self.lstm_hidden_dim = lstm_hidden_dim
+        self.audio_lstm_hidden_dim = audio_lstm_hidden_dim
+        self.text_lstm_hidden_dim = text_lstm_hidden_dim
         self.fc_hidden_dim = fc_hidden_dim
         self.lr = lr
         self.weight_decay = weight_decay
-        self.scheduler_name = scheduler_name
+        self.scheduler_step_size = scheduler_step_size
+        self.scheduler_gamma = scheduler_gamma
         self.patience = patience
+        self.n_epochs = n_epochs
         self.device = torch.device(device)
+
+        self.train_dataset, self.val_dataset, self.test_dataset = None, None, None
         self.run_pipeline()
 
     def log(self, text, print_to_console=True):
@@ -159,13 +167,63 @@ class TrainEvalModel:
         end_time = datetime.now()
         self.log(f'Pipeline Execution Time: {str(end_time - start_time).split('.')[0]}')
 
+    def run_epoch(self, progressbar, phase, epoch=None):
+        if phase == 'Training':
+            self.model.train()
+            dataset = self.train_dataset
+            backward_pass = True
+            update_progress_bar = True
+        elif phase == 'Validation':
+            self.model.eval()
+            dataset = self.val_dataset
+            backward_pass = False
+            update_progress_bar = True
+        elif phase == 'Test':
+            self.model.eval()
+            dataset = self.test_dataset
+            backward_pass = False
+            update_progress_bar = False
+
+        labels = []
+        predictions = []
+        total_loss = 0.0
+        gradient_norm = 0.0
+
+        for idx, (x_audio, x_text, y) in enumerate(dataset):
+            x_audio, x_text, y = x_audio.to(self.device), x_text.to(self.device), y.to(self.device)
+
+            # Forward pass and collect predictions, empty gradients for training
+            if backward_pass: self.optimizer.zero_grad()
+            output = self.model(x_audio, x_text)
+            pred = torch.sigmoid(output).round()
+            predictions.append(pred.item())
+            labels.append(y.item())
+
+            # Calculate and accumulate loss
+            loss = self.criterion(output, y)
+            total_loss += loss.item()
+            if update_progress_bar:
+                n_samples = len(dataset)
+                progressbar.set_description(self.get_progressbar_description(phase, epoch, idx, n_samples, loss))
+
+            # Backward pass only for training
+            if backward_pass:
+                loss.backward()
+                gradient_norm += self.compute_gradient_norm()
+                self.optimizer.step()
+
+        if backward_pass:
+            self.writer.add_scalar(tag='Gradient Norm', scalar_value=gradient_norm, global_step=epoch)
+        return labels, predictions, total_loss
+
     def train_and_evaluate(self):
         # Model initialization
         self.model = MultimodalClassifier(
+            modality=self.modality,
             audio_feature_dim=self.train_dataset.audio_feature_dim,
             text_feature_dim=self.train_dataset.text_feature_dim,
-            lstm_n_layers=self.lstm_n_layers,
-            lstm_hidden_dim=self.lstm_hidden_dim,
+            audio_lstm_hidden_dim=self.audio_lstm_hidden_dim,
+            text_lstm_hidden_dim=self.text_lstm_hidden_dim,
             fc_hidden_dim=self.fc_hidden_dim
         ).to(self.device)
         self.criterion = nn.BCEWithLogitsLoss()
@@ -173,15 +231,7 @@ class TrainEvalModel:
         self.stopper = EarlyStopping(patience=self.patience, epsilon=1e-2)
         self.log(str(summary(self.model)), print_to_console=False)
         self.tensorboard_add_model_graph()
-        if self.scheduler_name == 'StepLR':
-            self.scheduler = StepLR(self.optimizer, step_size=3, gamma=0.5)
-        elif self.scheduler_name == 'OneCycleLR':
-            self.scheduler = OneCycleLR(
-                optimizer=self.optimizer,
-                max_lr=self.lr,
-                epochs=self.n_epochs,
-                steps_per_epoch=len(self.train_dataset)
-            )
+        self.scheduler = StepLR(self.optimizer, step_size=self.scheduler_step_size, gamma=self.scheduler_gamma)
 
         # ------------------------------------------- Training -------------------------------------------
         progressbar = trange(self.n_epochs)
@@ -206,8 +256,7 @@ class TrainEvalModel:
             self.log('-' * 65)
 
             # Change the learning rate according to the scheduler, check conditions for early stopping
-            if self.scheduler_name != 'OneCycleLR':
-                self.scheduler.step()
+            self.scheduler.step()
             self.stopper(train_loss, val_loss)
             if self.stopper.early_stop:
                 self.log('Early stopping was triggered!')
@@ -221,56 +270,3 @@ class TrainEvalModel:
         # Compute the test metrics, add to log, no plotting is needed in tensorboard
         self.log(f"{'=' * 26} Test Results {'=' * 25}")
         return self.compute_metrics(test_labels, test_predictions, phase='Test')
-
-    def run_epoch(self, progressbar, phase, epoch=None):
-        if phase == 'Training':
-            self.model.train()
-            dataset = self.train_dataset
-            backward_pass = True
-            update_progress_bar = True
-        elif phase == 'Validation':
-            self.model.eval()
-            dataset = self.val_dataset
-            backward_pass = False
-            update_progress_bar = True
-        elif phase == 'Test':
-            self.model.eval()
-            dataset = self.test_dataset
-            backward_pass = False
-            update_progress_bar = False
-        else:
-            raise ValueError('Invalid phase')
-
-        labels = []
-        predictions = []
-        total_loss = 0.0
-        gradient_norm = 0.0
-
-        for idx, (x_audio, x_text, y) in enumerate(dataset):
-            x_audio, x_text, y = x_audio.to(self.device), x_text.to(self.device), y.to(self.device)
-
-            # Forward pass and collect predictions, empty gradients for training
-            if backward_pass: self.optimizer.zero_grad()
-            output = self.model(x_audio, x_text).squeeze(1)
-            pred = torch.sigmoid(output).round()
-            predictions.append(pred.item())
-            labels.append(y.item())
-
-            # Calculate and accumulate loss
-            loss = self.criterion(output, y)
-            total_loss += loss.item()
-            if update_progress_bar:
-                n_samples = len(dataset)
-                progressbar.set_description(self.get_progressbar_description(phase, epoch, idx, n_samples, loss))
-
-            # Backward pass only for training
-            if backward_pass:
-                loss.backward()
-                gradient_norm += self.compute_gradient_norm()
-                self.optimizer.step()
-                if self.scheduler_name == 'OneCycleLR':
-                    self.scheduler.step()
-
-        if backward_pass:
-            self.writer.add_scalar(tag='Gradient Norm', scalar_value=gradient_norm, global_step=epoch)
-        return labels, predictions, total_loss

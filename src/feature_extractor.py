@@ -35,6 +35,7 @@ class TextFeatureExtractor:
         models = {
             'BERT': 'bert-base-uncased',
             'ItalianBERT': 'dbmdz/bert-base-italian-cased',
+            # 'ItalianBERT': 'dbmdz/bert-base-italian-xxl-cased',
             'XLMRoBERTa': 'FacebookAI/xlm-roberta-large'
         }
         # self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')

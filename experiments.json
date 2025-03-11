@@ -1,24 +1,50 @@
 {
-  "DAIC_HuB_RoB": {
+  "DAIC_HuB_RoB_multimodal": {
     "dataset": "DAIC_WoZ",
+    "modality": "multimodal",
     "audio_vectorizer": "HuBERT",
     "text_vectorizer": "XLMRoBERTa",
+    "audio_lstm_hidden_dim": 256,
+    "text_lstm_hidden_dim": 256,
+    "fc_hidden_dim": 128,
     "lr": 0.005,
     "weight_decay": 5e-4,
-    "scheduler_name": "OneCycleLR",
-    "patience": 6,
-    "n_epochs": 30,
+    "scheduler_step_size": 25,
+    "scheduler_gamma": 0.5,
+    "patience": 4,
+    "n_epochs": 100,
     "device": "cuda:0"
+  },
+  "DAIC_HuB_RoB_text": {
+    "dataset": "DAIC_WoZ",
+    "modality": "text",
+    "audio_vectorizer": "HuBERT",
+    "text_vectorizer": "XLMRoBERTa",
+    "audio_lstm_hidden_dim": 256,
+    "text_lstm_hidden_dim": 256,
+    "fc_hidden_dim": 128,
+    "lr": 0.005,
+    "weight_decay": 5e-4,
+    "scheduler_step_size": 25,
+    "scheduler_gamma": 0.5,
+    "patience": 4,
+    "n_epochs": 100,
+    "device": "cuda:1"
   },
   "AC_HuB_RoB": {
     "dataset": "Androids_Corpus",
+    "modality": "multimodal",
     "audio_vectorizer": "HuBERT",
     "text_vectorizer": "XLMRoBERTa",
+    "audio_lstm_hidden_dim": 256,
+    "text_lstm_hidden_dim": 256,
+    "fc_hidden_dim": 128,
     "lr": 0.0005,
     "weight_decay": 1e-6,
-    "scheduler_name": "StepLR",
+    "scheduler_step_size": 25,
+    "scheduler_gamma": 0.5,
     "patience": 4,
-    "n_epochs": 50,
+    "n_epochs": 100,
     "device": "cuda:0"
   }
 }

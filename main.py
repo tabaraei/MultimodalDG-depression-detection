@@ -34,9 +34,18 @@ def main(download, vectorize, run_all_experiments, experiment):
         for audio_vectorizer, text_vectorizer in product(audio_vectorizers, text_vectorizers):
             TrainEvalModel(
                 dataset=dataset,
+                modality='multimodal',
                 audio_vectorizer=audio_vectorizer,
                 text_vectorizer=text_vectorizer,
+                audio_lstm_hidden_dim=256,
+                text_lstm_hidden_dim=256,
+                fc_hidden_dim=128,
                 lr=0.0005 if dataset == 'Androids_Corpus' else 0.001,
+                weight_decay=1e-6,
+                scheduler_step_size=25,
+                scheduler_gamma=0.5,
+                patience=4,
+                n_epochs=100,
                 device='cuda:0'
             )
 
