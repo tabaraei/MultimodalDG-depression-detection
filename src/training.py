@@ -2,6 +2,7 @@ from src.model import MultimodalClassifier
 from src.dataset_loader import DAICWoZDataset, AndroidsCorpusDataset
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import StepLR
+from torch.nn.utils.rnn import pad_sequence
 import torch.nn as nn
 import torch.optim as optim
 import torch
@@ -14,6 +15,7 @@ from torchinfo import summary
 from datetime import datetime
 from collections import deque
 import shutil
+import gc
 
 
 class EarlyStopping:
@@ -53,22 +55,24 @@ class TrainEvalModel:
             patience,
             n_epochs,
             device,
+            segment_duration=None,
             reset_log_file=True,
             reset_tensorboard=True
     ):
         load_dotenv()
         self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
+        self.FOLDER_PATH = f'{dataset}{f'_{segment_duration}s' if segment_duration else ''}/{modality}'
         self.FILE_NAME = (
-            f'{dataset}_{modality}_{audio_vectorizer}_{text_vectorizer}_'
+            f'{audio_vectorizer}_{text_vectorizer}_'
             f'{audio_lstm_hidden_dim}_{text_lstm_hidden_dim}_{fc_hidden_dim}'
         )
 
-        LOG_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'logs')
+        LOG_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'logs', self.FOLDER_PATH)
         os.makedirs(LOG_PATH, exist_ok=True)
         self.LOG_FILE_PATH = f'{LOG_PATH}/{self.FILE_NAME}.txt'
         if reset_log_file: open(self.LOG_FILE_PATH, 'w').close()
 
-        WRITER_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'runs')
+        WRITER_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'runs', self.FOLDER_PATH)
         os.makedirs(WRITER_PATH, exist_ok=True)
         self.WRITER_FILE_PATH = f'{WRITER_PATH}/{self.FILE_NAME}'
         self.reset_tensorboard = reset_tensorboard
@@ -77,6 +81,7 @@ class TrainEvalModel:
         self.modality = modality
         self.audio_vectorizer = audio_vectorizer
         self.text_vectorizer = text_vectorizer
+        self.segment_duration = segment_duration
         self.audio_lstm_hidden_dim = audio_lstm_hidden_dim
         self.text_lstm_hidden_dim = text_lstm_hidden_dim
         self.fc_hidden_dim = fc_hidden_dim
@@ -86,7 +91,7 @@ class TrainEvalModel:
         self.scheduler_gamma = scheduler_gamma
         self.patience = patience
         self.n_epochs = n_epochs
-        self.device = torch.device(device)
+        self.device = device
 
         self.train_dataset, self.val_dataset, self.test_dataset = None, None, None
         self.run_pipeline()
@@ -99,9 +104,15 @@ class TrainEvalModel:
     def tensorboard_add_model_graph(self):
         with torch.no_grad():
             x_audio, x_text, _ = next(iter(self.train_dataset))
-            x_audio = x_audio.to(self.device)
-            x_text = x_text.to(self.device)
+            x_audio = torch.cat(x_audio, dim=0).to(self.device)
+            x_text = pad_sequence([seg.squeeze(0) for seg in x_text], batch_first=True, padding_value=0.0).to(
+                self.device)
             self.writer.add_graph(self.model, input_to_model=(x_audio, x_text))
+
+            # Free up the memory from GPU
+            del x_audio, x_text
+            torch.cuda.empty_cache()
+            gc.collect()
 
     def get_progressbar_description(self, phase, epoch, idx, n_samples, loss):
         desc = f'{phase}: Epoch [{epoch + 1}/{self.n_epochs}], ' \
@@ -131,17 +142,22 @@ class TrainEvalModel:
 
     def run_pipeline(self):
         start_time = datetime.now()
-        vectorizers = {'audio_vectorizer': self.audio_vectorizer, 'text_vectorizer': self.text_vectorizer}
+        args = {
+            'audio_vectorizer': self.audio_vectorizer,
+            'text_vectorizer': self.text_vectorizer,
+            'segment_duration': self.segment_duration,
+            'device': self.device
+        }
 
         if self.dataset == 'DAIC_WoZ':
-            torch.backends.cudnn.enabled = False
+            # torch.backends.cudnn.enabled = False
             if self.reset_tensorboard and os.path.exists(self.WRITER_FILE_PATH):
                 shutil.rmtree(self.WRITER_FILE_PATH)
             self.writer = SummaryWriter(self.WRITER_FILE_PATH)
 
-            self.train_dataset = DAICWoZDataset(train_val_test='train', **vectorizers)
-            self.val_dataset = DAICWoZDataset(train_val_test='val', **vectorizers)
-            self.test_dataset = DAICWoZDataset(train_val_test='test', **vectorizers)
+            self.train_dataset = DAICWoZDataset(train_val_test='train', **args)
+            self.val_dataset = DAICWoZDataset(train_val_test='val', **args)
+            self.test_dataset = DAICWoZDataset(train_val_test='test', **args)
             self.train_and_evaluate()
             self.writer.close()
 
@@ -153,9 +169,9 @@ class TrainEvalModel:
                     shutil.rmtree(writer_path)
                 self.writer = SummaryWriter(writer_path)
 
-                self.train_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='train', **vectorizers)
-                self.val_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='val', **vectorizers)
-                self.test_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='test', **vectorizers)
+                self.train_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='train', **args)
+                self.val_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='val', **args)
+                self.test_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='test', **args)
                 accuracy, precision, recall, f1 = self.train_and_evaluate()
                 fold_metrics.append([accuracy, precision, recall, f1])
                 self.writer.close()
@@ -190,7 +206,10 @@ class TrainEvalModel:
         gradient_norm = 0.0
 
         for idx, (x_audio, x_text, y) in enumerate(dataset):
-            x_audio, x_text, y = x_audio.to(self.device), x_text.to(self.device), y.to(self.device)
+            x_audio = torch.cat(x_audio, dim=0).to(self.device)
+            x_text = pad_sequence([seg.squeeze(0) for seg in x_text], batch_first=True, padding_value=0.0).to(
+                self.device)
+            y = y.to(self.device)
 
             # Forward pass and collect predictions, empty gradients for training
             if backward_pass: self.optimizer.zero_grad()
@@ -211,6 +230,11 @@ class TrainEvalModel:
                 loss.backward()
                 gradient_norm += self.compute_gradient_norm()
                 self.optimizer.step()
+
+            # Free up the memory from GPU
+            del x_audio, x_text, y
+            torch.cuda.empty_cache()
+            gc.collect()
 
         if backward_pass:
             self.writer.add_scalar(tag='Gradient Norm', scalar_value=gradient_norm, global_step=epoch)
@@ -266,6 +290,11 @@ class TrainEvalModel:
         # Test Phase
         with torch.no_grad():
             test_labels, test_predictions, _ = self.run_epoch(progressbar, phase='Test')
+
+        # Free up the memory from GPU
+        del self.model
+        torch.cuda.empty_cache()
+        gc.collect()
 
         # Compute the test metrics, add to log, no plotting is needed in tensorboard
         self.log(f"{'=' * 26} Test Results {'=' * 25}")

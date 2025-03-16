@@ -1,3 +1,4 @@
+from src.feature_extractor import Transcriber
 import os
 import shutil
 import requests
@@ -6,8 +7,6 @@ from io import BytesIO
 from tqdm.auto import tqdm
 from dotenv import load_dotenv
 import librosa
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
-import torch
 import re
 from natsort import natsorted
 import pandas as pd
@@ -20,10 +19,11 @@ class DatasetDownloader:
     3. Extracts the transcripts for the audio files in case of Androids-Corpus dataset
     """
 
-    def __init__(self, dataset):
+    def __init__(self, dataset, device):
         load_dotenv()
         self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
         self.SAMPLE_RATE = 16000
+        self.device = device
 
         if dataset == 'DAIC_WoZ':
             self.RAW_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/DAIC_WoZ')
@@ -92,27 +92,8 @@ class DatasetDownloader:
         shutil.rmtree(DOWNLOAD_PATH)
 
     def extract_transcripts(self):
-        # Prepare and download the Whisper fine-tuned model
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        MODEL_NAME = 'bofenghuang/whisper-large-v3-distil-it-v0.2'
-        processor = AutoProcessor.from_pretrained(MODEL_NAME)
-        model = AutoModelForSpeechSeq2Seq.from_pretrained(MODEL_NAME).to(device)
-        pipe = pipeline(
-            task='automatic-speech-recognition',
-            model=model,
-            feature_extractor=processor.feature_extractor,
-            tokenizer=processor.tokenizer,
-            device=device,
-            generate_kwargs={
-                'task': 'transcribe',
-                'language': 'it',
-                'return_timestamps': True,
-                'max_new_tokens': 128,
-                'forced_decoder_ids': None,
-            }
-        )
-
         # Extract transcripts
+        transcriber = Transcriber(device=self.device)
         pattern = r'^[0-9]{2}_[CP][MF][0-9]{2}_[x0-9]$'
         sorted_participants = natsorted(os.listdir(self.RAW_DATA_PATH))
         for participant in tqdm(sorted_participants, desc='Extracting transcripts of Androids-Corpus'):
@@ -123,7 +104,7 @@ class DatasetDownloader:
                     data_path = os.path.join(PARTICIPANT_PATH, data)
                     if data_path.endswith('.wav'):
                         waveform, _ = librosa.load(data_path, sr=self.SAMPLE_RATE)
-                        text = pipe(waveform)['text']
+                        text = transcriber([waveform])
 
                         text_file_name = data_path.replace('.wav', '.txt')
                         with open(text_file_name, 'w') as f:
