@@ -1,4 +1,5 @@
 from transformers import AutoModel, AutoTokenizer, AutoProcessor, AutoModelForSpeechSeq2Seq, pipeline
+from torch.nn.utils.rnn import pad_sequence
 import torch
 import numpy as np
 import gc
@@ -17,6 +18,7 @@ class AudioFeatureExtractor:
         self.model = AutoModel.from_pretrained(self.model_name).to(self.device)
         self.feature_dim = self.model.config.hidden_size
         self.sample_rate = 16000
+        self.concat_dim = 0 if self.segment_duration else 1
 
     def __call__(self, audio_segments):
         segments_features = []
@@ -28,15 +30,11 @@ class AudioFeatureExtractor:
                 features = self.model(**input_features).last_hidden_state.cpu()
             segments_features.append(features)
 
-            # Free up the memory from GPU
-            del input_features, features, segment
+            del input_features, features
             torch.cuda.empty_cache()
             gc.collect()
 
-        if self.segment_duration:
-            return segments_features
-        else:
-            return torch.cat(segments_features, dim=1)
+        return torch.cat(segments_features, dim=self.concat_dim)
 
 
 class TextFeatureExtractor:
@@ -62,13 +60,12 @@ class TextFeatureExtractor:
                 features = self.model(**input_features).last_hidden_state.cpu()
             segments_features.append(features)
 
-            # Free up the memory from GPU
-            del input_features, features, segment
+            del input_features, features
             torch.cuda.empty_cache()
             gc.collect()
 
         if self.segment_duration:
-            return segments_features
+            return pad_sequence([seg.squeeze(0) for seg in segments_features], batch_first=True, padding_value=0.0)
         else:
             return torch.cat(segments_features, dim=1)
 

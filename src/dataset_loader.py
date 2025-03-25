@@ -34,16 +34,8 @@ class BaseDataset(Dataset, ABC):
             self.select_indices()
 
         if audio_vectorizer and text_vectorizer:
-            self.audio_vectorizer = AudioFeatureExtractor(
-                model_name=audio_vectorizer,
-                device=self.device,
-                segment_duration=self.segment_duration
-            )
-            self.text_vectorizer = TextFeatureExtractor(
-                model_name=text_vectorizer,
-                device=self.device,
-                segment_duration=self.segment_duration
-            )
+            self.audio_vectorizer = AudioFeatureExtractor(audio_vectorizer, self.segment_duration, self.device)
+            self.text_vectorizer = TextFeatureExtractor(text_vectorizer, self.segment_duration, self.device)
             self.label_transformer = LabelTransformer()
 
             self.audio_feature_dim = self.audio_vectorizer.feature_dim
@@ -53,8 +45,8 @@ class BaseDataset(Dataset, ABC):
             self.X_audio = self.load_cache(data_type='audio', name=audio_vectorizer, transformer=self.audio_vectorizer)
             self.y = self.load_cache(data_type='label', name='label', transformer=self.label_transformer)
         else:
-            self.X_text = self.load_raw_data(data_type='text')
             self.X_audio = self.load_raw_data(data_type='audio')
+            self.X_text = self.load_raw_data(data_type='text')
             self.y = self.load_raw_data(data_type='label')
         self.select_train_test_split()
 
@@ -106,13 +98,7 @@ class BaseDataset(Dataset, ABC):
         return cache_data
 
     def select_train_test_split(self):
-        if self.train_val_test == 'train':
-            indices = self.train_indices
-        elif self.train_val_test == 'val':
-            indices = self.val_indices
-        elif self.train_val_test == 'test':
-            indices = self.test_indices
-
+        indices = eval(f'self.{f"{self.train_val_test}"}_indices')
         self.X_audio = [self.X_audio[i] for i in indices]
         self.X_text = [self.X_text[i] for i in indices]
         self.y = [self.y[i] for i in indices]
