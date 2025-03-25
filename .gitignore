@@ -5,6 +5,5 @@
 __pycache__/
 
 # Ignore the following files
-.env
 .DS_Store
 *.pyc

@@ -1,75 +1,51 @@
 # MS-Thesis
 
-The following commands were run in MacOS iTerminal to install the Python packages and prerequisites:
+### Installation
 
 ```shell
-python3 -m venv venv
-source venv/bin/activate
+conda create --name thesis python=3.12.8
+conda activate thesis
 pip install -r requirements.txt
-
-python3 src/data/dataset_loader.py
 ```
 
-To use the TensorBoard, run `tensorboard --logdir "runs" --port 6009 --host=0.0.0.0` on the server.
-Then, access the board on local host at `http://159.149.133.153:6009/`:
+> [!IMPORTANT]
+> Modify the `.env` file, updating `PROJECT_ROOT_PATH` with the correct absolute path to the project directory
 
-Create a `.env` file at the project root, and add the following details to the file:
+### TensorBoard
 
-```
-PROJECT_ROOT_PATH=/Users/<LOCAL_PATH_TO_THE_PROJECT>/MS-Thesis
-```
+To prepare the TensorBoard for a given experiment (e.g., `AC30_Wav_ITB_multimodal`):
 
-Suggested Project Organization:
+1. Run `tensorboard --logdir "runs/Androids_Corpus_30s/Wav2Vec2_ItalianBERT/multimodal" --port 6010`
+2. Access the TensorBoard on `http://localhost:6010/`
+
+> [!TIP]
+> - To check the status of previous TensorBoards on Linux, run `ps aux | grep tensorboard`
+> - Mapping a remote execution to local server can be achieved by `ssh -L 6010:localhost:6010 USER@SERVER_ADDRESS`
+
+### Project Structure
 
 ```shell
-project_name/
-├── data/                      # Store raw and processed datasets
-│   ├── raw/                   # Original datasets (downloaded files)
-│   │   ├── eatd_corpus/
-│   │   ├── daic_woz/
-│   ├── processed/             # Preprocessed data (features, cleaned data)
-│   │   ├── audio_features/
-│   │   ├── text_features/
-├── src/                       # Main source code
-│   ├── data/                  # Code related to data downloading & preparation
-│   │   ├── dataset_loader.py   # Download and save DAIC-WoZ and EATD-Corpus
-│   │   ├── preprocess_eatd.py # Preprocess EATD-Corpus
-│   │   ├── preprocess_daic.py # Preprocess DAIC-WoZ
-│   ├── features/              # Feature extraction for text and audio
-│   │   ├── audio/
-│   │   │   ├── extract_audio_eatd.py
-│   │   │   ├── extract_audio_daic.py
-│   │   └── text/
-│   │       ├── extract_text_eatd.py
-│   │       ├── extract_text_daic.py
-│   ├── fusion/                # Fusion techniques for embeddings
-│   │   ├── simple_concat.py   # Example: Simple concatenation fusion
-│   │   ├── advanced_fusion.py # Advanced fusion methods
-│   ├── classification/        # Code for classifiers
-│   │   ├── classifiers.py     # Classifier implementations (e.g., SVM, MLP)
-│   │   ├── train_classifier.py # Code for training and evaluation
-│   ├── domain_generalization/ # Domain generalization techniques
-│       ├── generalization.py  # Domain generalization implementation
-│       ├── evaluate.py        # Evaluation for domain generalization
-├── experiments/               # Scripts for different experiments
-│   ├── exp_fusion_01.py       # Example: Experiment script for fusion method 1
-│   ├── exp_classifier_01.py   # Example: Experiment script for classifier 1
-├── tests/                     # Unit tests for various modules
-│   ├── test_data.py           # Test for data downloading/preprocessing
-│   ├── test_features.py       # Test for feature extraction
-│   ├── test_fusion.py         # Test for fusion methods
-├── utils/                     # Utility functions
-│   ├── logging.py             # Custom logging functions
-│   ├── metrics.py             # Metric calculations (e.g., accuracy, F1-score)
-│   ├── helpers.py             # Reusable helper functions
-├── notebooks/                 # Jupyter notebooks for exploratory analysis
-│   ├── eda_eatd.ipynb         # Exploratory Data Analysis for EATD-Corpus
-│   ├── eda_daic.ipynb         # Exploratory Data Analysis for DAIC-WoZ
-├── configs/                   # Configuration files for different experiments
-│   ├── default.yaml           # Default configuration
-│   ├── exp_fusion.yaml        # Config for a specific fusion experiment
-├── requirements.txt           # Python dependencies
-├── README.md                  # Documentation about the project
-├── .gitignore                 # Ignored files/folders
-└── setup.py                   # For creating a Python package (optional)
+MS-Thesis/
+├── src/                          # Contains the main project scripts
+│   ├── dataset_downloader.py     # Script to download the DAIC-WoZ & Androids-Corpus datasets
+│   ├── dataset_loader.py         # Loads and preprocesses datasets for training
+│   ├── feature_extractor.py      # Extracts audio & text feature embeddings
+│   ├── model.py                  # Defines the multimodal BiLSTM-based model architecture
+│   ├── training.py               # Training & evaluation pipeline (loss, optimizer, logging)
+│   ├── visualize.py              # Scripts for visualizing model results & metrics
+├── data/                         # Contains the raw and processed data files
+│   ├── processed/                # Processed cached feature embeddings
+│   ├── raw/                      # Raw datasets before processing
+│   │   ├── Androids_Corpus/      # Folder for the Androids Corpus dataset
+│   │   ├── DAIC_WoZ/             # Folder for the DAIC-WoZ dataset
+├── logs/                         # Training logs (loss, metrics, lr, execution time)
+├── runs/                         # Stores the tensorboard workers for further access
+├── .env                          # Environment variables (API keys, paths, etc.)
+├── .gitignore                    # Files & directories to ignore in version control
+├── Depression_Detection.ipynb    # Jupyter notebook for quick experiments & visualization
+├── experiments.csv               # hyper-parameter value setting for each of the experiments
+├── LICENSE                       # License information for the project
+├── main.py                       # main code block to run from the command-line
+├── README.md                     # Project overview, setup instructions, and usage details
+├── requirements.txt              # List of dependencies for installation
 ```
