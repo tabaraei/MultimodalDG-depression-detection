@@ -20,7 +20,8 @@ class MainClass:
             'lr': 'float64',
             'weight_decay': 'float64',
             'scheduler_factor': 'float64',
-            'patience': 'Int32',
+            'scheduler_patience': 'Int32',
+            'stopper_patience': 'Int32',
             'n_epochs': 'Int32'
         })
 
@@ -45,7 +46,7 @@ class MainClass:
         DAICWoZDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='XLMRoBERTa', **args)
 
     def single_experiment(self, experiment):
-        args = self.experiments[self.experiments.experiment == experiment].iloc[0, 1:14].to_dict()
+        args = self.experiments[self.experiments.experiment == experiment].iloc[0, 1:15].to_dict()
         TrainEvalModel(device=self.device, **args)
 
     def multiple_experiments(self):
@@ -117,7 +118,7 @@ if __name__ == "__main__":
         2- Vectorize the dataset (first run only):
             - python3 main.py --vectorize --device "cuda:0"
         3- Run specific experiment defined in `experiments.csv`:
-            - python3 main.py --experiment "DAIC30_HuB_BERT_audio" --device "cuda:0"
+            - python3 main.py --experiment "AC30_HuB_BERT_audio" --device "cuda:1"
         4- Run multiple experiments: 
             - python3 main.py --multiple_experiments --device "cuda:0"
     """

@@ -33,7 +33,7 @@ class EarlyStopping:
 
         # Early stop due to negligible training loss changes OR due to increasing validation loss
         consecutive_diffs_below_epsilon = abs(np.diff(self.queue_train_losses)) < self.epsilon
-        consecutive_diffs_positive = np.diff(self.queue_val_losses) >= 0
+        consecutive_diffs_positive = np.diff(self.queue_val_losses) > 0
         self.early_stop = np.all(consecutive_diffs_below_epsilon) or np.all(consecutive_diffs_positive)
 
 
@@ -50,7 +50,8 @@ class TrainEvalModel:
             lr,
             weight_decay,
             scheduler_factor,
-            patience,
+            scheduler_patience,
+            stopper_patience,
             n_epochs,
             device,
             segment_duration=None,
@@ -66,7 +67,7 @@ class TrainEvalModel:
         )
         self.FILE_NAME = (
             f'{audio_lstm_hidden_dim}_{text_lstm_hidden_dim}_{fc_hidden_dim}_{lr}_{weight_decay}_'
-            f'{scheduler_factor}_{patience}_{n_epochs}'
+            f'{scheduler_factor}_{scheduler_patience}_{stopper_patience}_{n_epochs}'
         )
 
         LOG_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'logs', self.FOLDER_PATH)
@@ -90,7 +91,8 @@ class TrainEvalModel:
         self.lr = lr
         self.weight_decay = weight_decay
         self.scheduler_factor = scheduler_factor
-        self.patience = patience
+        self.scheduler_patience = scheduler_patience
+        self.stopper_patience = stopper_patience
         self.n_epochs = n_epochs
         self.device = device
 
@@ -187,6 +189,66 @@ class TrainEvalModel:
         end_time = datetime.now()
         self.log(f'Pipeline Execution Time: {str(end_time - start_time).split('.')[0]}')
 
+    def train_and_evaluate(self):
+        # Model initialization
+        pos_weight = (len(self.train_dataset) - sum(self.train_dataset.y)) / sum(self.train_dataset.y)
+        self.criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).to(self.device)
+        self.model = MultimodalClassifier(
+            modality=self.modality,
+            audio_feature_dim=self.train_dataset.audio_feature_dim,
+            text_feature_dim=self.train_dataset.text_feature_dim,
+            audio_lstm_hidden_dim=self.audio_lstm_hidden_dim,
+            text_lstm_hidden_dim=self.text_lstm_hidden_dim,
+            fc_hidden_dim=self.fc_hidden_dim
+        ).to(self.device)
+        self.log(str(summary(self.model)), print_to_console=False)
+        self.tensorboard_add_model_graph()
+        self.optimizer = optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        self.stopper = EarlyStopping(patience=self.stopper_patience, epsilon=1e-2)
+        self.scheduler = ReduceLROnPlateau(
+            optimizer=self.optimizer,
+            patience=self.scheduler_patience,
+            factor=self.scheduler_factor
+        )
+
+        # ------------------------------------------- Training -------------------------------------------
+        progressbar = trange(self.n_epochs)
+        for epoch in progressbar:
+            # Training Phase
+            train_labels, train_predictions, train_loss = self.run_epoch(progressbar, phase='Training', epoch=epoch)
+
+            # Validation Phase
+            with torch.no_grad():
+                val_labels, val_predictions, val_loss = self.run_epoch(progressbar, phase='Validation', epoch=epoch)
+
+            # Compute the metrics, create the logs, and add their plots to tensorboard
+            lr = self.optimizer.param_groups[0]['lr']
+            losses = {'Train': train_loss, 'Validation': val_loss}
+            self.log(f"Epoch [{epoch + 1}/{self.n_epochs}]:")
+            self.log(f"Learning Rate: {lr:.7f}")
+            self.log(f"Training Loss: {losses['Train']:.3f}, Validation Loss: {losses['Validation']:.3f}")
+            self.compute_metrics(train_labels, train_predictions, phase='Training', epoch=epoch)
+            self.compute_metrics(val_labels, val_predictions, phase='Validation', epoch=epoch)
+            self.writer.add_scalar(tag='Learning Rate', scalar_value=lr, global_step=epoch)
+            self.writer.add_scalars(main_tag='Loss', tag_scalar_dict=losses, global_step=epoch)
+            self.log('-' * 65)
+
+            # Change the learning rate according to the scheduler, check conditions for early stopping
+            self.scheduler.step(val_loss)
+            self.stopper(train_loss, val_loss)
+            if self.stopper.early_stop:
+                self.log('Early stopping was triggered!')
+                break
+
+        # ------------------------------------------ Evaluation ------------------------------------------
+        # Test Phase
+        with torch.no_grad():
+            test_labels, test_predictions, _ = self.run_epoch(progressbar, phase='Test')
+
+        # Compute the test metrics, add to log, no plotting is needed in tensorboard
+        self.log(f"{'=' * 26} Test Results {'=' * 25}")
+        return self.compute_metrics(test_labels, test_predictions, phase='Test')
+
     def run_epoch(self, progressbar, phase, epoch=None):
         if phase == 'Training':
             self.model.train()
@@ -226,7 +288,7 @@ class TrainEvalModel:
                 n_samples = len(dataset)
                 progressbar.set_description(self.get_progressbar_description(phase, epoch, idx, n_samples, loss))
 
-            # Backward pass only for training
+            # Backward pass only for training, and gradient clipping
             if backward_pass:
                 loss.backward()
                 gradient_norm += self.compute_gradient_norm()
@@ -240,63 +302,3 @@ class TrainEvalModel:
         if backward_pass:
             self.writer.add_scalar(tag='Gradient Norm', scalar_value=gradient_norm, global_step=epoch)
         return labels, predictions, total_loss
-
-    def train_and_evaluate(self):
-        # Model initialization
-        pos_weight = (len(self.train_dataset) - sum(self.train_dataset.y)) / sum(self.train_dataset.y)
-        self.criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).to(self.device)
-        self.model = MultimodalClassifier(
-            modality=self.modality,
-            audio_feature_dim=self.train_dataset.audio_feature_dim,
-            text_feature_dim=self.train_dataset.text_feature_dim,
-            audio_lstm_hidden_dim=self.audio_lstm_hidden_dim,
-            text_lstm_hidden_dim=self.text_lstm_hidden_dim,
-            fc_hidden_dim=self.fc_hidden_dim
-        ).to(self.device)
-        self.optimizer = optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-        self.stopper = EarlyStopping(patience=self.patience + 2, epsilon=1e-2)
-        self.log(str(summary(self.model)), print_to_console=False)
-        self.tensorboard_add_model_graph()
-        self.scheduler = ReduceLROnPlateau(
-            optimizer=self.optimizer,
-            patience=self.patience,
-            factor=self.scheduler_factor
-        )
-
-        # ------------------------------------------- Training -------------------------------------------
-        progressbar = trange(self.n_epochs)
-        for epoch in progressbar:
-            # Training Phase
-            train_labels, train_predictions, train_loss = self.run_epoch(progressbar, phase='Training', epoch=epoch)
-
-            # Validation Phase
-            with torch.no_grad():
-                val_labels, val_predictions, val_loss = self.run_epoch(progressbar, phase='Validation', epoch=epoch)
-
-            # Compute the metrics, create the logs, and add their plots to tensorboard
-            lr = self.scheduler.get_last_lr()[0]
-            losses = {'Train': train_loss, 'Validation': val_loss}
-            self.log(f"Epoch [{epoch + 1}/{self.n_epochs}]:")
-            self.log(f"Learning Rate: {lr:.7f}")
-            self.log(f"Training Loss: {losses['Train']:.3f}, Validation Loss: {losses['Validation']:.3f}")
-            self.compute_metrics(train_labels, train_predictions, phase='Training', epoch=epoch)
-            self.compute_metrics(val_labels, val_predictions, phase='Validation', epoch=epoch)
-            self.writer.add_scalar(tag='Learning Rate', scalar_value=lr, global_step=epoch)
-            self.writer.add_scalars(main_tag='Loss', tag_scalar_dict=losses, global_step=epoch)
-            self.log('-' * 65)
-
-            # Change the learning rate according to the scheduler, check conditions for early stopping
-            self.scheduler.step(val_loss)
-            self.stopper(train_loss, val_loss)
-            if self.stopper.early_stop:
-                self.log('Early stopping was triggered!')
-                break
-
-        # ------------------------------------------ Evaluation ------------------------------------------
-        # Test Phase
-        with torch.no_grad():
-            test_labels, test_predictions, _ = self.run_epoch(progressbar, phase='Test')
-
-        # Compute the test metrics, add to log, no plotting is needed in tensorboard
-        self.log(f"{'=' * 26} Test Results {'=' * 25}")
-        return self.compute_metrics(test_labels, test_predictions, phase='Test')
