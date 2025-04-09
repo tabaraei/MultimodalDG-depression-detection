@@ -7,7 +7,7 @@ import torch.optim as optim
 import torch
 from tqdm.auto import trange
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, precision_score, recall_score, f1_score
 import os
 from dotenv import load_dotenv
 from torchinfo import summary
@@ -54,6 +54,7 @@ class TrainEvalModel:
             stopper_patience,
             n_epochs,
             device,
+            imbalance_weighting,
             segment_duration=None,
             reset_log_file=True,
             reset_tensorboard=True
@@ -66,7 +67,7 @@ class TrainEvalModel:
             f'{modality}'
         )
         self.FILE_NAME = (
-            f'{audio_lstm_hidden_dim}_{text_lstm_hidden_dim}_{fc_hidden_dim}_{lr}_{weight_decay}_'
+            f'{imbalance_weighting}_42_{audio_lstm_hidden_dim}_{text_lstm_hidden_dim}_{fc_hidden_dim}_{lr}_{weight_decay}_'
             f'{scheduler_factor}_{scheduler_patience}_{stopper_patience}_{n_epochs}'
         )
 
@@ -95,6 +96,7 @@ class TrainEvalModel:
         self.stopper_patience = stopper_patience
         self.n_epochs = n_epochs
         self.device = device
+        self.imbalance_weighting = imbalance_weighting
 
         self.train_dataset, self.val_dataset, self.test_dataset = None, None, None
         self.run_pipeline()
@@ -131,15 +133,22 @@ class TrainEvalModel:
 
     def compute_metrics(self, labels, predictions, phase, epoch=None, n_decimals=3):
         accuracy = round(accuracy_score(labels, predictions), n_decimals)
+        balanced_accuracy = round(float(balanced_accuracy_score(labels, predictions)), n_decimals)
         precision = round(precision_score(labels, predictions, zero_division=0), n_decimals)
         recall = round(recall_score(labels, predictions, zero_division=0), n_decimals)
         f1 = round(f1_score(labels, predictions, zero_division=0), n_decimals)
 
-        metrics = {'Accuracy': accuracy, 'Precision': precision, 'Recall': recall, 'F1': f1}
+        metrics = {
+            'Accuracy': accuracy,
+            'Balanced Accuracy': balanced_accuracy,
+            'Precision': precision,
+            'Recall': recall,
+            'F1': f1
+        }
         self.log(f'{phase} Metrics: {metrics}')
         if phase != 'Test':
             self.writer.add_scalars(main_tag=f'{phase} Metrics', tag_scalar_dict=metrics, global_step=epoch)
-        return accuracy, precision, recall, f1
+        return accuracy, balanced_accuracy, precision, recall, f1
 
     def clean_GPU_cache(self):
         del self.train_dataset, self.val_dataset, self.test_dataset, self.model
@@ -177,22 +186,28 @@ class TrainEvalModel:
                 self.train_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='train', **args)
                 self.val_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='val', **args)
                 self.test_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='test', **args)
-                accuracy, precision, recall, f1 = self.train_and_evaluate()
-                fold_metrics.append([accuracy, precision, recall, f1])
+                accuracy, balanced_accuracy, precision, recall, f1 = self.train_and_evaluate()
+                fold_metrics.append([accuracy, balanced_accuracy, precision, recall, f1])
                 self.writer.close()
                 self.clean_GPU_cache()
 
-            accuracy, precision, recall, f1 = np.mean(fold_metrics, axis=0)
+            accuracy, balanced_accuracy, precision, recall, f1 = np.mean(fold_metrics, axis=0)
             self.log(f"{'=' * 14} 5-fold Cross Validation Test Results {'=' * 13}")
-            self.log(f'Accuracy: {accuracy:.3f}, Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}')
+            self.log(
+                f'Accuracy: {accuracy:.3f}, Balanced Accuracy: {balanced_accuracy:.3f}, '
+                f'Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}'
+            )
 
         end_time = datetime.now()
         self.log(f'Pipeline Execution Time: {str(end_time - start_time).split('.')[0]}')
 
     def train_and_evaluate(self):
         # Model initialization
-        pos_weight = (len(self.train_dataset) - sum(self.train_dataset.y)) / sum(self.train_dataset.y)
-        self.criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).to(self.device)
+        if self.imbalance_weighting:
+            pos_weight = (len(self.train_dataset) - sum(self.train_dataset.y)) / sum(self.train_dataset.y)
+            self.criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).to(self.device)
+        else:
+            self.criterion = nn.BCEWithLogitsLoss()
         self.model = MultimodalClassifier(
             modality=self.modality,
             audio_feature_dim=self.train_dataset.audio_feature_dim,

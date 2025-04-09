@@ -9,7 +9,7 @@ import pandas as pd
 
 
 class MainClass:
-    def __init__(self, device):
+    def __init__(self, imbalance_weighting, device):
         load_dotenv()
         self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
         self.EXPERIMENTS_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'experiments.csv')
@@ -24,16 +24,15 @@ class MainClass:
             'stopper_patience': 'Int32',
             'n_epochs': 'Int32'
         })
-
+        self.imbalance_weighting = imbalance_weighting
         self.device = torch.device(device)
-        self.segment_duration = 30
 
     def download(self):
         DatasetDownloader(dataset='DAIC_WoZ', device=self.device)
         DatasetDownloader(dataset='Androids_Corpus', device=self.device)
 
-    def vectorize(self):
-        args = {'segment_duration': self.segment_duration, 'device': self.device}
+    def vectorize(self, segment_duration):
+        args = {'segment_duration': segment_duration, 'device': self.device}
 
         # Vectorize and cache Androids-Corpus
         AndroidsCorpusDataset(audio_vectorizer='HuBERT', text_vectorizer='ItalianBERT', **args)
@@ -47,46 +46,34 @@ class MainClass:
 
     def single_experiment(self, experiment):
         args = self.experiments[self.experiments.experiment == experiment].iloc[0, 1:15].to_dict()
-        TrainEvalModel(device=self.device, **args)
+        TrainEvalModel(device=self.device, imbalance_weighting=self.imbalance_weighting, **args)
 
     def multiple_experiments(self):
         experiments = [
-            'AC30_HuB_BERT_audio',
-            'AC30_HuB_BERT_text',
+            'AC30_HuB_audio',
+            'AC30_Wav_audio',
+            'AC30_Mel_audio',
+            'AC30_BERT_text',
+            'AC30_ITB_text',
+            'AC30_RoB_text',
             'AC30_HuB_BERT_multimodal',
-            'AC30_HuB_ITB_audio',
-            'AC30_HuB_ITB_text',
             'AC30_HuB_ITB_multimodal',
-            'AC30_HuB_RoB_audio',
-            'AC30_HuB_RoB_text',
             'AC30_HuB_RoB_multimodal',
-            'AC30_Wav_BERT_audio',
-            'AC30_Wav_BERT_text',
             'AC30_Wav_BERT_multimodal',
-            'AC30_Wav_ITB_audio',
-            'AC30_Wav_ITB_text',
             'AC30_Wav_ITB_multimodal',
-            'AC30_Wav_RoB_audio',
-            'AC30_Wav_RoB_text',
             'AC30_Wav_RoB_multimodal',
-            'DAIC30_HuB_BERT_audio',
-            'DAIC30_HuB_BERT_text',
-            'DAIC30_HuB_BERT_multimodal',
-            'DAIC30_HuB_ITB_audio',
-            'DAIC30_HuB_ITB_text',
-            'DAIC30_HuB_ITB_multimodal',
-            'DAIC30_HuB_RoB_audio',
-            'DAIC30_HuB_RoB_text',
-            'DAIC30_HuB_RoB_multimodal',
-            'DAIC30_Wav_BERT_audio',
-            'DAIC30_Wav_BERT_text',
-            'DAIC30_Wav_BERT_multimodal',
-            'DAIC30_Wav_ITB_audio',
-            'DAIC30_Wav_ITB_text',
-            'DAIC30_Wav_ITB_multimodal',
-            'DAIC30_Wav_RoB_audio',
-            'DAIC30_Wav_RoB_text',
-            'DAIC30_Wav_RoB_multimodal',
+            'AC60_HuB_audio',
+            'AC60_Wav_audio',
+            'AC60_Mel_audio',
+            'AC60_BERT_text',
+            'AC60_ITB_text',
+            'AC60_RoB_text',
+            'AC60_HuB_BERT_multimodal',
+            'AC60_HuB_ITB_multimodal',
+            'AC60_HuB_RoB_multimodal',
+            'AC60_Wav_BERT_multimodal',
+            'AC60_Wav_ITB_multimodal',
+            'AC60_Wav_RoB_multimodal'
         ]
         for experiment in experiments:
             self.single_experiment(experiment)
@@ -99,11 +86,13 @@ class MainClass:
 @click.option('--multiple_experiments', is_flag=True, help='Run multiple experiments defined as a list')
 @click.option('--device', required=True, help='Select either cuda or cpu to run the experiment')
 def main(download, vectorize, multiple_experiments, experiment, device):
-    execute = MainClass(device)
+    imbalance_weighting = False
+    execute = MainClass(imbalance_weighting=imbalance_weighting, device=device)
+
     if download:
         execute.download()
     if vectorize:
-        execute.vectorize()
+        execute.vectorize(segment_duration=60)
     if experiment:
         execute.single_experiment(experiment)
     if multiple_experiments:
@@ -115,10 +104,10 @@ if __name__ == "__main__":
     This file can be run directly from the command line:
         1- Download the dataset (first run only):
             - python3 main.py --download --device "cuda:0"
-        2- Vectorize the dataset (first run only):
+        2- Vectorize the dataset (first run only, change the segment duration before running this script):
             - python3 main.py --vectorize --device "cuda:0"
         3- Run specific experiment defined in `experiments.csv`:
-            - python3 main.py --experiment "AC30_HuB_BERT_audio" --device "cuda:1"
+            - python3 main.py --experiment "AC30_Mel_audio" --device "cpu"
         4- Run multiple experiments: 
             - python3 main.py --multiple_experiments --device "cuda:0"
     """

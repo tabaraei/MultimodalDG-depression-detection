@@ -1,26 +1,37 @@
 from transformers import AutoModel, AutoTokenizer, AutoProcessor, AutoModelForSpeechSeq2Seq, pipeline
 from torch.nn.utils.rnn import pad_sequence
 import torch
+import librosa
 import numpy as np
 import gc
 
 
 class AudioFeatureExtractor:
-    def __init__(self, model_name, segment_duration, device):
-        models = {
-            'Wav2Vec2': 'facebook/wav2vec2-base-960h',
-            'HuBERT': 'facebook/hubert-large-ls960-ft'
-        }
+    def __init__(self, model_name, segment_duration, device, sample_rate=16000):
+        self.model_name = model_name
         self.segment_duration = segment_duration
         self.device = device
-        self.model_name = models[model_name]
-        self.processor = AutoProcessor.from_pretrained(self.model_name)
-        self.model = AutoModel.from_pretrained(self.model_name).to(self.device)
-        self.feature_dim = self.model.config.hidden_size
-        self.sample_rate = 16000
-        self.concat_dim = 0 if self.segment_duration else 1
+        self.sample_rate = sample_rate
+        self.init_extractor()
 
-    def __call__(self, audio_segments):
+    def init_extractor(self):
+        if self.model_name == 'MelSpec':
+            self.n_mels = 128
+            self.feature_dim = self.n_mels * 3
+            self.extractor = self.melspectrogram_extractor
+        else:
+            models = {
+                'Wav2Vec2': 'facebook/wav2vec2-base-960h',
+                'HuBERT': 'facebook/hubert-large-ls960-ft',
+            }
+            self.model_name = models[self.model_name]
+            self.processor = AutoProcessor.from_pretrained(self.model_name)
+            self.model = AutoModel.from_pretrained(self.model_name).to(self.device)
+            self.concat_dim = 0 if self.segment_duration else 1
+            self.feature_dim = self.model.config.hidden_size
+            self.extractor = self.transformer_extractor
+
+    def transformer_extractor(self, audio_segments):
         segments_features = []
         for segment in audio_segments:
             segment = torch.tensor(segment, dtype=torch.float32)
@@ -33,8 +44,29 @@ class AudioFeatureExtractor:
             del input_features, features
             torch.cuda.empty_cache()
             gc.collect()
-
         return torch.cat(segments_features, dim=self.concat_dim)
+
+    def melspectrogram_extractor(self, audio_segments, n_fft=2048, hop_length=512):
+        segments_features = []
+        for segment in audio_segments:
+            mel = librosa.feature.melspectrogram(
+                y=segment,
+                sr=self.sample_rate,
+                n_mels=self.n_mels,
+                hop_length=hop_length,
+                n_fft=n_fft
+            )
+            logmel = torch.tensor(librosa.power_to_db(mel, ref=np.max), dtype=torch.float32)
+            delta = torch.tensor(librosa.feature.delta(logmel), dtype=torch.float32)
+            delta2 = torch.tensor(librosa.feature.delta(logmel, order=2), dtype=torch.float32)
+
+            features = torch.cat([logmel.T, delta.T, delta2.T], dim=-1)
+            segments_features.append(features)
+
+        return torch.stack(segments_features)
+
+    def __call__(self, audio_segments):
+        return self.extractor(audio_segments)
 
 
 class TextFeatureExtractor:
@@ -92,7 +124,8 @@ class Transcriber:
             tokenizer=processor.tokenizer,
             feature_extractor=processor.feature_extractor,
             torch_dtype=torch_dtype,
-            device=device
+            device=device,
+            generate_kwargs={'return_timestamps': True}
         )
 
     def __call__(self, x):
