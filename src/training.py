@@ -67,7 +67,7 @@ class TrainEvalModel:
             f'{modality}'
         )
         self.FILE_NAME = (
-            f'{imbalance_weighting}_42_{audio_lstm_hidden_dim}_{text_lstm_hidden_dim}_{fc_hidden_dim}_{lr}_{weight_decay}_'
+            f'{imbalance_weighting}_{audio_lstm_hidden_dim}_{text_lstm_hidden_dim}_{fc_hidden_dim}_{lr}_{weight_decay}_'
             f'{scheduler_factor}_{scheduler_patience}_{stopper_patience}_{n_epochs}'
         )
 

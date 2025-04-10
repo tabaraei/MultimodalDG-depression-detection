@@ -245,7 +245,7 @@ class AndroidsCorpusDataset(BaseDataset):
 
         train_labels = [1 if p[3] == 'P' else 0 for p in train_participants]
         train_participants, val_participants, _, _ = train_test_split(
-            train_participants, train_labels, test_size=0.2, stratify=train_labels, random_state=42
+            train_participants, train_labels, test_size=0.2, stratify=train_labels, random_state=2
         )
         train_participants = natsorted(train_participants)
         val_participants = natsorted(val_participants)

@@ -1,13 +1,16 @@
 experiment;dataset;segment_duration;audio_vectorizer;text_vectorizer;modality;audio_lstm_hidden_dim;text_lstm_hidden_dim;fc_hidden_dim;lr;weight_decay;scheduler_factor;scheduler_patience;stopper_patience;n_epochs;accuracy;precision;recall;f1-score
 
+AC30_Mel_audio;Androids_Corpus;30;MelSpec;BERT;audio;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
 AC30_HuB_audio;Androids_Corpus;30;HuBERT;BERT;audio;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
 AC30_Wav_audio;Androids_Corpus;30;Wav2Vec2;BERT;audio;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
-AC30_Mel_audio;Androids_Corpus;30;MelSpec;BERT;audio;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
 
 AC30_BERT_text;Androids_Corpus;30;HuBERT;BERT;text;256;256;128;0.00001;0.00001;0.5;2;3;100;0.751;0.767;0.814;0.785
 AC30_ITB_text;Androids_Corpus;30;HuBERT;ItalianBERT;text;256;256;128;0.00001;0.00801;0.5;2;3;60;0.828;0.892;0.802;0.835
 AC30_RoB_text;Androids_Corpus;30;HuBERT;XLMRoBERTa;text;256;256;128;0.00001;0.00001;0.5;2;3;100;0.777;0.817;0.809;0.797
 
+AC30_Mel_BERT_multimodal;Androids_Corpus;30;MelSpec;BERT;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
+AC30_Mel_ITB_multimodal;Androids_Corpus;30;MelSpec;ItalianBERT;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
+AC30_Mel_RoB_multimodal;Androids_Corpus;30;MelSpec;XLMRoBERTa;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
 AC30_HuB_BERT_multimodal;Androids_Corpus;30;HuBERT;BERT;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;0.690;0.756;0.732;0.720
 AC30_HuB_ITB_multimodal;Androids_Corpus;30;HuBERT;ItalianBERT;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;0.836;0.887;0.851;0.850
 AC30_HuB_RoB_multimodal;Androids_Corpus;30;HuBERT;XLMRoBERTa;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;0.699;0.717;0.776;0.730
@@ -15,14 +18,17 @@ AC30_Wav_BERT_multimodal;Androids_Corpus;30;Wav2Vec2;BERT;multimodal;256;256;128
 AC30_Wav_ITB_multimodal;Androids_Corpus;30;Wav2Vec2;ItalianBERT;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;0.845;0.902;0.844;0.858
 AC30_Wav_RoB_multimodal;Androids_Corpus;30;Wav2Vec2;XLMRoBERTa;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;0.810;0.854;0.801;0.823
 
+AC60_Mel_audio;Androids_Corpus;60;MelSpec;BERT;audio;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
 AC60_HuB_audio;Androids_Corpus;60;HuBERT;BERT;audio;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
 AC60_Wav_audio;Androids_Corpus;60;Wav2Vec2;BERT;audio;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
-AC60_Mel_audio;Androids_Corpus;60;MelSpec;BERT;audio;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
 
 AC60_BERT_text;Androids_Corpus;60;HuBERT;BERT;text;256;256;128;0.00001;0.00001;0.5;2;3;100;;;;
 AC60_ITB_text;Androids_Corpus;60;HuBERT;ItalianBERT;text;256;256;128;0.00001;0.00801;0.5;2;3;60;;;;
 AC60_RoB_text;Androids_Corpus;60;HuBERT;XLMRoBERTa;text;256;256;128;0.00001;0.00001;0.5;2;3;100;;;;
 
+AC60_Mel_BERT_multimodal;Androids_Corpus;60;MelSpec;BERT;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
+AC60_Mel_ITB_multimodal;Androids_Corpus;60;MelSpec;ItalianBERT;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
+AC60_Mel_RoB_multimodal;Androids_Corpus;60;MelSpec;XLMRoBERTa;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
 AC60_HuB_BERT_multimodal;Androids_Corpus;60;HuBERT;BERT;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
 AC60_HuB_ITB_multimodal;Androids_Corpus;60;HuBERT;ItalianBERT;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
 AC60_HuB_RoB_multimodal;Androids_Corpus;60;HuBERT;XLMRoBERTa;multimodal;256;256;128;0.00001;0.00001;0.5;2;3;200;;;;
