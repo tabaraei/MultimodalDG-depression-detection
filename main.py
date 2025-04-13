@@ -36,14 +36,14 @@ class MainClass:
         args = {'segment_duration': segment_duration, 'device': self.device}
 
         # Vectorize and cache Androids-Corpus
-        AndroidsCorpusDataset(audio_vectorizer='HuBERT', text_vectorizer='ItalianBERT', **args)
-        AndroidsCorpusDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='BERT', **args)
-        AndroidsCorpusDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='XLMRoBERTa', **args)
-
-        # Vectorize and cache DAIC-WoZ
-        DAICWoZDataset(audio_vectorizer='HuBERT', text_vectorizer='ItalianBERT', **args)
-        DAICWoZDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='BERT', **args)
-        DAICWoZDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='XLMRoBERTa', **args)
+        AndroidsCorpusDataset(audio_vectorizer='MelSpec', text_vectorizer='BERT', **args)
+        # AndroidsCorpusDataset(audio_vectorizer='HuBERT', text_vectorizer='ItalianBERT', **args)
+        # AndroidsCorpusDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='XLMRoBERTa', **args)
+        #
+        # # Vectorize and cache DAIC-WoZ
+        # DAICWoZDataset(audio_vectorizer='HuBERT', text_vectorizer='ItalianBERT', **args)
+        # DAICWoZDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='BERT', **args)
+        # DAICWoZDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='XLMRoBERTa', **args)
 
     def single_experiment(self, experiment):
         args = self.experiments[self.experiments.experiment == experiment].iloc[0, 1:].to_dict()
@@ -144,7 +144,7 @@ class MainClass:
 @click.option('--all_experiments', help='Run all experiments altogether')
 @click.option('--multiple_experiments', is_flag=True, help='Run multiple experiments defined as a list')
 @click.option('--device', required=True, help='Select either cuda or cpu to run the experiment')
-@click.option('--segment_duration', help='Select a specific segment duration to split the audio')
+@click.option('--segment_duration', type=int, help='Select a specific segment duration to split the audio')
 def main(download, vectorize, all_experiments, multiple_experiments, experiment, device, segment_duration):
     imbalance_weighting = False
     execute = MainClass(imbalance_weighting=imbalance_weighting, device=device)
