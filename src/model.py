@@ -1,6 +1,46 @@
 import torch
 import torch.nn as nn
-from block import fusions
+import torch.nn.functional as F
+
+
+class IntraModalAttention(nn.Module):
+    def __init__(self, input_dim, hidden_dim, dropout=0.1):
+        super().__init__()
+        self.norm = nn.LayerNorm(input_dim)
+        self.attn = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, 1)
+        )
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        x = self.norm(x)
+        attn_scores = self.attn(x)
+        weights = F.softmax(attn_scores, dim=1)
+        weights = self.dropout(weights)
+        return (weights * x).sum(dim=1)
+
+
+class CrossModalAttention(nn.Module):
+    def __init__(self, query_dim, key_dim, hidden_dim, n_heads=4, dropout=0.1):
+        super().__init__()
+        self.query_proj = nn.Linear(query_dim, hidden_dim)
+        self.key_proj = nn.Linear(key_dim, hidden_dim)
+        self.value_proj = nn.Linear(key_dim, hidden_dim)
+
+        self.attn = nn.MultiheadAttention(hidden_dim, num_heads=n_heads, dropout=dropout, batch_first=True)
+        self.dropout = nn.Dropout(dropout)
+        self.norm = nn.LayerNorm(hidden_dim)
+
+    def forward(self, query, context):
+        Q = self.query_proj(query)
+        K = self.key_proj(context)
+        V = self.value_proj(context)
+
+        attn_output, _ = self.attn(Q, K, V)
+        output = self.norm(Q + self.dropout(attn_output))
+        return output
 
 
 class MultimodalClassifier(nn.Module):
@@ -25,18 +65,23 @@ class MultimodalClassifier(nn.Module):
             audio_lstm_hidden_dim,
             text_lstm_hidden_dim,
             fc_hidden_dim,
+            attn_hidden_dim=128,
+            cross_attn_hidden_dim=256,
             lstm_n_layers=1
     ):
         super().__init__()
         self.modality = modality
         self.audio_feature_dim = audio_feature_dim
         self.text_feature_dim = text_feature_dim
+        self.audio_bilstm_dim = audio_lstm_hidden_dim * 2
+        self.text_bilstm_dim = text_lstm_hidden_dim * 2
+
         if modality == 'audio':
-            self.linear_input_dim = audio_lstm_hidden_dim
+            self.linear_input_dim = self.audio_bilstm_dim
         elif modality == 'text':
-            self.linear_input_dim = text_lstm_hidden_dim
+            self.linear_input_dim = self.text_bilstm_dim
         elif modality == 'multimodal':
-            self.linear_input_dim = audio_lstm_hidden_dim + text_lstm_hidden_dim
+            self.linear_input_dim = self.audio_bilstm_dim + self.text_bilstm_dim + cross_attn_hidden_dim
 
         self.audio_lstm = nn.LSTM(
             input_size=self.audio_feature_dim,
@@ -52,30 +97,46 @@ class MultimodalClassifier(nn.Module):
             batch_first=True,
             bidirectional=True
         )
+        self.audio_attn = IntraModalAttention(input_dim=self.audio_bilstm_dim, hidden_dim=attn_hidden_dim)
+        self.text_attn = IntraModalAttention(input_dim=self.text_bilstm_dim, hidden_dim=attn_hidden_dim)
+        self.cross_attn_pool = IntraModalAttention(input_dim=cross_attn_hidden_dim, hidden_dim=attn_hidden_dim)
+        self.cross_attn = CrossModalAttention(
+            query_dim=self.text_bilstm_dim,
+            key_dim=self.audio_bilstm_dim,
+            hidden_dim=cross_attn_hidden_dim
+        )
         self.fc = nn.Sequential(
-            nn.Linear(self.linear_input_dim * 2, fc_hidden_dim),  # forward/backward
+            nn.Linear(in_features=self.linear_input_dim, out_features=fc_hidden_dim),
             nn.ReLU(),
-            nn.Linear(fc_hidden_dim, 1)
+            nn.Linear(in_features=fc_hidden_dim, out_features=1)
         )
 
-    def extract_BiLSTM_hidden(self, lstm, x):
-        # x_dim: <batch_size, seq_len, feature_dim>
-        # output_dim: <lstm_n_layers * 2 (BiLSTM), batch_size, lstm_hidden_dim>
-        _, (BiLSTM_hidden, _) = lstm(x)
-        # output_dim: <batch_size, lstm_hidden_dim * 2 (BiLSTM)>
-        return torch.cat((BiLSTM_hidden[-2], BiLSTM_hidden[-1]), dim=-1)
+    def extract_self_attended_BiLSTM(self, lstm, attn, x):
+        BiLSTM_seq, _ = lstm(x)
+        BiLSTM_attn = attn(BiLSTM_seq)
+        return BiLSTM_attn, BiLSTM_seq
 
     def forward(self, x_audio, x_text):
+        """
+        audio_attn: <batch_size, audio_lstm_hidden_dim * 2>
+        audio_seq: <batch_size, seq_len_audio, audio_lstm_hidden_dim * 2>, seq_len_audio is fixed (segment_duration)
+        text_attn: <batch_size, text_lstm_hidden_dim * 2>
+        text_seq: <batch_size, seq_len_text, text_lstm_hidden_dim * 2>, seq_len_text varies according to text size
+        cross_modal_features: <batch_size, seq_len_text, cross_attn_hidden_dim>, with pool becomes <batch_size, cross_attn_hidden_dim>
+        features: <batch_size, self.linear_input_dim>
+        output_logits: <batch_size, 1>
+        output_logit: <1>
+        """
         if self.modality == 'audio':
-            features = self.extract_BiLSTM_hidden(self.audio_lstm, x_audio)
+            features, _ = self.extract_self_attended_BiLSTM(self.audio_lstm, self.audio_attn, x_audio)
         elif self.modality == 'text':
-            features = self.extract_BiLSTM_hidden(self.text_lstm, x_text)
+            features, _ = self.extract_self_attended_BiLSTM(self.text_lstm, self.text_attn, x_text)
         elif self.modality == 'multimodal':
-            audio_features = self.extract_BiLSTM_hidden(self.audio_lstm, x_audio)
-            text_features = self.extract_BiLSTM_hidden(self.text_lstm, x_text)
-            # output_dim: <batch_size, lstm_hidden_dim * 2 (BiLSTM) * 2 (modalities)>
-            features = torch.cat((audio_features, text_features), dim=-1)
+            audio_attn, audio_seq = self.extract_self_attended_BiLSTM(self.audio_lstm, self.audio_attn, x_audio)
+            text_attn, text_seq = self.extract_self_attended_BiLSTM(self.text_lstm, self.text_attn, x_text)
+            cross_modal_features = self.cross_attn_pool(self.cross_attn(query=text_seq, context=audio_seq))
+            features = torch.cat([audio_attn, text_attn, cross_modal_features], dim=-1)
 
-        # output_dim: <batch_size, 1>
         output_logits = self.fc(features)
-        return torch.mean(output_logits).unsqueeze(0)
+        output_logit = output_logits.mean().unsqueeze(0)
+        return output_logit

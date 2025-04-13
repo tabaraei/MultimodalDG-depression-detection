@@ -61,14 +61,13 @@ class TrainEvalModel:
     ):
         load_dotenv()
         self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
-        self.FOLDER_PATH = (
-            f'{dataset}{f'_{segment_duration}s' if segment_duration else ''}/'
-            f'{audio_vectorizer}_{text_vectorizer}/'
-            f'{modality}'
-        )
+        vectorizer = f'{audio_vectorizer}_{text_vectorizer}' if modality == 'multimodal' \
+            else audio_vectorizer if modality == 'audio' \
+            else text_vectorizer
+        self.FOLDER_PATH = f'{dataset}{f'_{segment_duration}s' if segment_duration else ''}/{modality}/{vectorizer}'
         self.FILE_NAME = (
-            f'{imbalance_weighting}_{audio_lstm_hidden_dim}_{text_lstm_hidden_dim}_{fc_hidden_dim}_{lr}_{weight_decay}_'
-            f'{scheduler_factor}_{scheduler_patience}_{stopper_patience}_{n_epochs}'
+            f'{audio_lstm_hidden_dim}_{text_lstm_hidden_dim}_{fc_hidden_dim}_{lr}_{weight_decay}_'
+            f'{scheduler_factor}_{scheduler_patience}_{stopper_patience}_{n_epochs}_{imbalance_weighting}'
         )
 
         LOG_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'logs', self.FOLDER_PATH)
@@ -118,10 +117,11 @@ class TrainEvalModel:
             self.writer.add_graph(self.model, input_to_model=(x_audio, x_text))
 
     def get_progressbar_description(self, phase, epoch, idx, n_samples, loss):
-        desc = f'{phase}: Epoch [{epoch + 1}/{self.n_epochs}], ' \
+        fold_descr = f'Fold [{self.fold}/{self.n_folds}], ' if self.fold else ''
+        return f'{phase}: {fold_descr}' \
+               f'Epoch [{epoch + 1}/{self.n_epochs}], ' \
                f'Item [{idx + 1}/{n_samples}], ' \
                f'Loss {loss.item():.3f}'
-        return desc
 
     def compute_gradient_norm(self):
         total_norm = 0.0
@@ -171,6 +171,7 @@ class TrainEvalModel:
         }
 
         if self.dataset == 'DAIC_WoZ':
+            self.fold = None
             self.initialize_writer(PATH=self.WRITER_FILE_PATH)
             self.train_dataset = DAICWoZDataset(train_val_test='train', **args)
             self.val_dataset = DAICWoZDataset(train_val_test='val', **args)
@@ -181,7 +182,9 @@ class TrainEvalModel:
 
         elif self.dataset == 'Androids_Corpus':
             fold_metrics = list()
-            for fold in range(5):
+            self.n_folds = 5
+            for fold in range(self.n_folds):
+                self.fold = fold + 1
                 self.initialize_writer(PATH=f'{self.WRITER_FILE_PATH}_fold_{fold}')
                 self.train_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='train', **args)
                 self.val_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='val', **args)

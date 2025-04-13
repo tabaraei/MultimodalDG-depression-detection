@@ -46,34 +46,58 @@ class MainClass:
         DAICWoZDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='XLMRoBERTa', **args)
 
     def single_experiment(self, experiment):
-        args = self.experiments[self.experiments.experiment == experiment].iloc[0, 1:15].to_dict()
+        args = self.experiments[self.experiments.experiment == experiment].iloc[0, 1:].to_dict()
         TrainEvalModel(device=self.device, imbalance_weighting=self.imbalance_weighting, **args)
 
     def all_experiments(self, dataset):
         audio_vectorizers = ['MelSpec', 'HuBERT', 'Wav2Vec2']
         text_vectorizers = ['BERT', 'ItalianBERT', 'XLMRoBERTa']
-        modalities = ['audio', 'text', 'multimodal']
         segment_durations = [30, 60]
-        for audio_vectorizer, text_vectorizer, modality, segment_duration in product(
-                audio_vectorizers, text_vectorizers, modalities, segment_durations
+        args = {
+            'dataset': dataset,
+            'audio_lstm_hidden_dim': 256,
+            'text_lstm_hidden_dim': 256,
+            'fc_hidden_dim': 128,
+            'lr': 0.00001,
+            'weight_decay': 0.00001,
+            'scheduler_factor': 0.5,
+            'scheduler_patience': 1,
+            'stopper_patience': 4,
+            'n_epochs': 100,
+            'imbalance_weighting': self.imbalance_weighting,
+            'device': self.device
+        }
+
+        # audio-only modality training
+        for audio_vectorizer, segment_duration in product(audio_vectorizers, segment_durations):
+            TrainEvalModel(
+                audio_vectorizer=audio_vectorizer,
+                segment_duration=segment_duration,
+                text_vectorizer='BERT',
+                modality='audio',
+                **args
+            )
+
+        # text-only modality training
+        for text_vectorizer, segment_duration in product(text_vectorizers, segment_durations):
+            TrainEvalModel(
+                text_vectorizer=text_vectorizer,
+                segment_duration=segment_duration,
+                audio_vectorizer='MelSpec',
+                modality='text',
+                **args
+            )
+
+        # Multimodal training
+        for audio_vectorizer, text_vectorizer, segment_duration in product(
+                audio_vectorizers, text_vectorizers, segment_durations
         ):
             TrainEvalModel(
-                dataset=dataset,
                 audio_vectorizer=audio_vectorizer,
                 text_vectorizer=text_vectorizer,
-                modality=modality,
-                audio_lstm_hidden_dim=256,
-                text_lstm_hidden_dim=256,
-                fc_hidden_dim=128,
-                lr=0.00001,
-                weight_decay=0.00001,
-                scheduler_factor=0.5,
-                scheduler_patience=1,
-                stopper_patience=3,
-                n_epochs=100,
-                segment_duration=segment_durations,
-                imbalance_weighting=self.imbalance_weighting,
-                device=self.device
+                segment_duration=segment_duration,
+                modality='multimodal',
+                **args
             )
 
     def multiple_experiments(self):
@@ -145,7 +169,7 @@ if __name__ == "__main__":
         2- Vectorize the dataset (first run only, change the segment duration before running this script):
             - python3 main.py --vectorize --device "cuda:0" --segment_duration 30
         3- Run specific experiment defined in `experiments.csv`:
-            - python3 main.py --experiment "AC30_Mel_audio" --device "cpu"
+            - python3 main.py --experiment "AC30_Wav_ITB_multimodal" --device "cuda:0"
         4- Run all experiments:
             - python3 main.py --all_experiments "Androids_Corpus" --device "cuda:0"
         5- Run multiple experiments: 
