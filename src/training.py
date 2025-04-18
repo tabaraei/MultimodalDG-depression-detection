@@ -156,7 +156,7 @@ class TrainEvalModel:
         gc.collect()
 
     def overcome_GPU_memory_constraints(self):
-        if self.dataset == 'DAIC_WoZ' and self.audio_vectorizer == 'HuBERT' and self.text_vectorizer == 'XLMRoBERTa':
+        if self.audio_vectorizer == 'HuBERT' and self.text_vectorizer == 'XLMRoBERTa':
             self.device = torch.device('cpu')
         torch.backends.cudnn.enabled = False if self.text_vectorizer == 'XLMRoBERTa' else True
 
@@ -195,10 +195,14 @@ class TrainEvalModel:
                 self.clean_GPU_cache()
 
             accuracy, balanced_accuracy, precision, recall, f1 = np.mean(fold_metrics, axis=0)
+            accuracy_std, balanced_accuracy_std, precision_std, recall_std, f1_std = np.std(fold_metrics, axis=0)
             self.log(f"{'=' * 14} 5-fold Cross Validation Test Results {'=' * 13}")
             self.log(
-                f'Accuracy: {accuracy:.3f}, Balanced Accuracy: {balanced_accuracy:.3f}, '
-                f'Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}'
+                f'Accuracy: {accuracy * 100:.2f}% ± {accuracy_std * 100:.2f}%\n'
+                f'Balanced Accuracy: {balanced_accuracy * 100:.2f}% ± {balanced_accuracy_std * 100:.2f}%\n'
+                f'Precision: {precision * 100:.2f}% ± {precision_std * 100:.2f}%\n'
+                f'Recall: {recall * 100:.2f}% ± {recall_std * 100:.2f}%\n'
+                f'F1-Score: {f1 * 100:.2f}% ± {f1_std * 100:.2f}%'
             )
 
         end_time = datetime.now()

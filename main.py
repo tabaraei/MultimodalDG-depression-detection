@@ -37,13 +37,13 @@ class MainClass:
 
         # Vectorize and cache Androids-Corpus
         AndroidsCorpusDataset(audio_vectorizer='MelSpec', text_vectorizer='BERT', **args)
-        # AndroidsCorpusDataset(audio_vectorizer='HuBERT', text_vectorizer='ItalianBERT', **args)
-        # AndroidsCorpusDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='XLMRoBERTa', **args)
-        #
-        # # Vectorize and cache DAIC-WoZ
-        # DAICWoZDataset(audio_vectorizer='HuBERT', text_vectorizer='ItalianBERT', **args)
-        # DAICWoZDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='BERT', **args)
-        # DAICWoZDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='XLMRoBERTa', **args)
+        AndroidsCorpusDataset(audio_vectorizer='HuBERT', text_vectorizer='ItalianBERT', **args)
+        AndroidsCorpusDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='XLMRoBERTa', **args)
+
+        # Vectorize and cache DAIC-WoZ
+        DAICWoZDataset(audio_vectorizer='HuBERT', text_vectorizer='ItalianBERT', **args)
+        DAICWoZDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='BERT', **args)
+        DAICWoZDataset(audio_vectorizer='Wav2Vec2', text_vectorizer='XLMRoBERTa', **args)
 
     def single_experiment(self, experiment):
         args = self.experiments[self.experiments.experiment == experiment].iloc[0, 1:].to_dict()
@@ -113,7 +113,6 @@ class MainClass:
             'AC30_Mel_RoB_multimodal',
             'AC30_HuB_BERT_multimodal',
             'AC30_HuB_ITB_multimodal',
-            'AC30_HuB_RoB_multimodal',
             'AC30_Wav_BERT_multimodal',
             'AC30_Wav_ITB_multimodal',
             'AC30_Wav_RoB_multimodal',
@@ -128,10 +127,11 @@ class MainClass:
             'AC60_Mel_RoB_multimodal',
             'AC60_HuB_BERT_multimodal',
             'AC60_HuB_ITB_multimodal',
-            'AC60_HuB_RoB_multimodal',
             'AC60_Wav_BERT_multimodal',
             'AC60_Wav_ITB_multimodal',
-            'AC60_Wav_RoB_multimodal'
+            'AC60_Wav_RoB_multimodal',
+            'AC30_HuB_RoB_multimodal',
+            'AC60_HuB_RoB_multimodal',
         ]
         for experiment in experiments:
             self.single_experiment(experiment)
