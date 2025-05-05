@@ -18,7 +18,7 @@ import gc
 
 
 class EarlyStopping:
-    def __init__(self, patience, epsilon):
+    def __init__(self, patience, epsilon=1e-2):
         self.patience = patience
         self.epsilon = epsilon
         self.early_stop = False
@@ -46,6 +46,8 @@ class TrainEvalModel:
             text_vectorizer,
             audio_lstm_hidden_dim,
             text_lstm_hidden_dim,
+            attn_hidden_dim,
+            cross_attn_hidden_dim,
             fc_hidden_dim,
             lr,
             weight_decay,
@@ -55,6 +57,8 @@ class TrainEvalModel:
             n_epochs,
             device,
             imbalance_weighting,
+            random_state,
+            idx,
             segment_duration=None,
             reset_log_file=True,
             reset_tensorboard=True
@@ -66,8 +70,9 @@ class TrainEvalModel:
             else text_vectorizer
         self.FOLDER_PATH = f'{dataset}{f'_{segment_duration}s' if segment_duration else ''}/{modality}/{vectorizer}'
         self.FILE_NAME = (
-            f'{audio_lstm_hidden_dim}_{text_lstm_hidden_dim}_{fc_hidden_dim}_{lr}_{weight_decay}_'
-            f'{scheduler_factor}_{scheduler_patience}_{stopper_patience}_{n_epochs}_{imbalance_weighting}'
+            f'{idx}_{imbalance_weighting}_{audio_lstm_hidden_dim}_{text_lstm_hidden_dim}_'
+            f'{attn_hidden_dim}_{cross_attn_hidden_dim}_{fc_hidden_dim}_{lr}_{weight_decay}_'
+            f'{scheduler_factor}_{scheduler_patience}_{stopper_patience}_{n_epochs}'
         )
 
         LOG_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'logs', self.FOLDER_PATH)
@@ -87,6 +92,8 @@ class TrainEvalModel:
         self.segment_duration = segment_duration
         self.audio_lstm_hidden_dim = audio_lstm_hidden_dim
         self.text_lstm_hidden_dim = text_lstm_hidden_dim
+        self.attn_hidden_dim = attn_hidden_dim
+        self.cross_attn_hidden_dim = cross_attn_hidden_dim
         self.fc_hidden_dim = fc_hidden_dim
         self.lr = lr
         self.weight_decay = weight_decay
@@ -96,6 +103,7 @@ class TrainEvalModel:
         self.n_epochs = n_epochs
         self.device = device
         self.imbalance_weighting = imbalance_weighting
+        self.random_state = random_state
 
         self.train_dataset, self.val_dataset, self.test_dataset = None, None, None
         self.run_pipeline()
@@ -186,9 +194,10 @@ class TrainEvalModel:
             for fold in range(self.n_folds):
                 self.fold = fold + 1
                 self.initialize_writer(PATH=f'{self.WRITER_FILE_PATH}_fold_{fold}')
-                self.train_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='train', **args)
-                self.val_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='val', **args)
-                self.test_dataset = AndroidsCorpusDataset(fold=fold, train_val_test='test', **args)
+                args_fold = {'fold': fold, 'random_state': self.random_state, **args}
+                self.train_dataset = AndroidsCorpusDataset(train_val_test='train', **args_fold)
+                self.val_dataset = AndroidsCorpusDataset(train_val_test='val', **args_fold)
+                self.test_dataset = AndroidsCorpusDataset(train_val_test='test', **args_fold)
                 accuracy, balanced_accuracy, precision, recall, f1 = self.train_and_evaluate()
                 fold_metrics.append([accuracy, balanced_accuracy, precision, recall, f1])
                 self.writer.close()
@@ -221,12 +230,14 @@ class TrainEvalModel:
             text_feature_dim=self.train_dataset.text_feature_dim,
             audio_lstm_hidden_dim=self.audio_lstm_hidden_dim,
             text_lstm_hidden_dim=self.text_lstm_hidden_dim,
+            attn_hidden_dim=self.attn_hidden_dim,
+            cross_attn_hidden_dim=self.cross_attn_hidden_dim,
             fc_hidden_dim=self.fc_hidden_dim
         ).to(self.device)
         self.log(str(summary(self.model)), print_to_console=False)
         self.tensorboard_add_model_graph()
         self.optimizer = optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-        self.stopper = EarlyStopping(patience=self.stopper_patience, epsilon=1e-2)
+        self.stopper = EarlyStopping(patience=self.stopper_patience)
         self.scheduler = ReduceLROnPlateau(
             optimizer=self.optimizer,
             patience=self.scheduler_patience,

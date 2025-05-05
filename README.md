@@ -43,7 +43,6 @@ MS-Thesis/
 ├── .env                          # Environment variables (API keys, paths, etc.)
 ├── .gitignore                    # Files & directories to ignore in version control
 ├── Depression_Detection.ipynb    # Jupyter notebook for quick experiments & visualization
-├── experiments.csv               # hyper-parameter value setting for each of the experiments
 ├── LICENSE                       # License information for the project
 ├── main.py                       # main code block to run from the command-line
 ├── README.md                     # Project overview, setup instructions, and usage details

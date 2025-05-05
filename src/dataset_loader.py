@@ -55,7 +55,7 @@ class BaseDataset(Dataset, ABC):
         segment_len = self.SAMPLE_RATE * self.segment_duration
         last_segment_len = len(waveform) % segment_len
 
-        if last_segment_len < segment_len // 2:
+        if last_segment_len < segment_len // 4:
             waveform = waveform[:-last_segment_len]
         else:
             n_zeros = segment_len - last_segment_len
@@ -218,11 +218,13 @@ class AndroidsCorpusDataset(BaseDataset):
             self,
             fold=0,
             train_val_test='train',
+            random_state=None,
             audio_vectorizer=None,
             text_vectorizer=None,
             segment_duration=None,
             device=None
     ):
+        self.random_state = random_state
         super().__init__(
             dataset='Androids_Corpus',
             fold=fold,
@@ -245,7 +247,11 @@ class AndroidsCorpusDataset(BaseDataset):
 
         train_labels = [1 if p[3] == 'P' else 0 for p in train_participants]
         train_participants, val_participants, _, _ = train_test_split(
-            train_participants, train_labels, test_size=0.2, stratify=train_labels, random_state=2
+            train_participants,
+            train_labels,
+            test_size=0.2,
+            stratify=train_labels,
+            random_state=self.random_state
         )
         train_participants = natsorted(train_participants)
         val_participants = natsorted(val_participants)

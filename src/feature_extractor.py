@@ -46,7 +46,7 @@ class AudioFeatureExtractor:
             gc.collect()
         return torch.cat(segments_features, dim=self.concat_dim)
 
-    def melspectrogram_extractor(self, audio_segments, n_fft=2048, hop_length=512):
+    def melspectrogram_extractor(self, audio_segments, n_fft=1024, hop_length=512):
         segments_features = []
         for segment in audio_segments:
             mel = librosa.feature.melspectrogram(

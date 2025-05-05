@@ -65,8 +65,8 @@ class MultimodalClassifier(nn.Module):
             audio_lstm_hidden_dim,
             text_lstm_hidden_dim,
             fc_hidden_dim,
-            attn_hidden_dim=128,
-            cross_attn_hidden_dim=256,
+            attn_hidden_dim,
+            cross_attn_hidden_dim,
             lstm_n_layers=1
     ):
         super().__init__()
@@ -97,6 +97,8 @@ class MultimodalClassifier(nn.Module):
             batch_first=True,
             bidirectional=True
         )
+        self.audio_norm = nn.LayerNorm(audio_lstm_hidden_dim * 2)
+        self.text_norm = nn.LayerNorm(text_lstm_hidden_dim * 2)
         self.audio_attn = IntraModalAttention(input_dim=self.audio_bilstm_dim, hidden_dim=attn_hidden_dim)
         self.text_attn = IntraModalAttention(input_dim=self.text_bilstm_dim, hidden_dim=attn_hidden_dim)
         self.cross_attn_pool = IntraModalAttention(input_dim=cross_attn_hidden_dim, hidden_dim=attn_hidden_dim)
@@ -111,29 +113,25 @@ class MultimodalClassifier(nn.Module):
             nn.Linear(in_features=fc_hidden_dim, out_features=1)
         )
 
-    def extract_self_attended_BiLSTM(self, lstm, attn, x):
-        BiLSTM_seq, _ = lstm(x)
-        BiLSTM_attn = attn(BiLSTM_seq)
+    def extract_self_attended_BiLSTM(self, x, modality):
+        if modality == 'audio':
+            BiLSTM_seq, _ = self.audio_lstm(x)
+            BiLSTM_seq = self.audio_norm(BiLSTM_seq)
+            BiLSTM_attn = self.audio_attn(BiLSTM_seq)
+        else:
+            BiLSTM_seq, _ = self.text_lstm(x)
+            BiLSTM_seq = self.text_norm(BiLSTM_seq)
+            BiLSTM_attn = self.text_attn(BiLSTM_seq)
         return BiLSTM_attn, BiLSTM_seq
 
     def forward(self, x_audio, x_text):
-        """
-        audio_attn: <batch_size, audio_lstm_hidden_dim * 2>
-        audio_seq: <batch_size, seq_len_audio, audio_lstm_hidden_dim * 2>, seq_len_audio is fixed (segment_duration)
-        text_attn: <batch_size, text_lstm_hidden_dim * 2>
-        text_seq: <batch_size, seq_len_text, text_lstm_hidden_dim * 2>, seq_len_text varies according to text size
-        cross_modal_features: <batch_size, seq_len_text, cross_attn_hidden_dim>, with pool becomes <batch_size, cross_attn_hidden_dim>
-        features: <batch_size, self.linear_input_dim>
-        output_logits: <batch_size, 1>
-        output_logit: <1>
-        """
         if self.modality == 'audio':
-            features, _ = self.extract_self_attended_BiLSTM(self.audio_lstm, self.audio_attn, x_audio)
+            features, _ = self.extract_self_attended_BiLSTM(x=x_audio, modality='audio')
         elif self.modality == 'text':
-            features, _ = self.extract_self_attended_BiLSTM(self.text_lstm, self.text_attn, x_text)
+            features, _ = self.extract_self_attended_BiLSTM(x=x_text, modality='text')
         elif self.modality == 'multimodal':
-            audio_attn, audio_seq = self.extract_self_attended_BiLSTM(self.audio_lstm, self.audio_attn, x_audio)
-            text_attn, text_seq = self.extract_self_attended_BiLSTM(self.text_lstm, self.text_attn, x_text)
+            audio_attn, audio_seq = self.extract_self_attended_BiLSTM(x=x_audio, modality='audio')
+            text_attn, text_seq = self.extract_self_attended_BiLSTM(x=x_text, modality='text')
             cross_modal_features = self.cross_attn_pool(self.cross_attn(query=text_seq, context=audio_seq))
             features = torch.cat([audio_attn, text_attn, cross_modal_features], dim=-1)
 

@@ -21,7 +21,8 @@ class Visualization:
         self.AC_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'data/raw/Androids_Corpus')
 
     def waveform_length_histogram(self, dataset):
-        waveform_lengths = list()
+        durations = list()
+        labels = list()
 
         if dataset == 'DAIC_WoZ':
             for file in tqdm(os.listdir(self.DAIC_DATA_PATH)):
@@ -29,25 +30,32 @@ class Visualization:
                     AUDIO_PATH = os.path.join(self.DAIC_DATA_PATH, file)
                     waveform, sr = librosa.load(AUDIO_PATH, sr=self.SAMPLE_RATE)
                     waveform_length = round(len(waveform) / (self.SAMPLE_RATE * 60))
-                    waveform_lengths.append(waveform_length)
+                    durations.append(waveform_length)
 
         elif dataset == 'Androids_Corpus':
             pattern = r'^[0-9]{2}_[CP][MF][0-9]{2}_[x0-9]$'
             for folder in tqdm(os.listdir(self.AC_DATA_PATH)):
                 if re.match(pattern, folder):
-                    waveform_length = 0
                     FOLDER_PATH = os.path.join(self.AC_DATA_PATH, folder)
+                    duration = 0
                     for file in os.listdir(FOLDER_PATH):
                         if file.endswith('.wav'):
                             AUDIO_PATH = os.path.join(FOLDER_PATH, file)
                             waveform, sr = librosa.load(AUDIO_PATH, sr=self.SAMPLE_RATE)
-                            waveform_length += len(waveform)
-                    waveform_length /= (self.SAMPLE_RATE * 60)
-                    waveform_lengths.append(waveform_length)
+                            duration += len(waveform) / self.SAMPLE_RATE
+                    durations.append(duration)
+                    labels.append('Depressed' if '_P' in folder else 'Control')
 
-        fig = plt.figure(figsize=(8, 4))
-        ax = sns.histplot(waveform_lengths, bins='auto', kde=True)
-        ax.set(title=f'{dataset} Waveform Length Histogram', xlabel='Minutes', ylabel='Frequency')
+        df = pd.DataFrame({'duration': durations, 'label': labels})
+        df = df.sort_values(by='label', ascending=False).reset_index(drop=True)
+        fig = plt.figure(figsize=(16, 3))
+        ax = sns.barplot(x=df.index, y='duration', hue='label', data=df,
+                         palette={'Control': '#f96f00', 'Depressed': '#325097'}, dodge=False)
+        ax.set(xlabel='Participant', ylabel='Duration (seconds)')
+        ax.grid(True, axis='y', linestyle='--', linewidth=0.5, alpha=0.7)
+        ax.legend()
+        plt.xticks([])
+        plt.tight_layout()
         return fig
 
     @staticmethod
