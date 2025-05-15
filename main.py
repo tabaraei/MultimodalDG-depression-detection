@@ -9,13 +9,14 @@ from itertools import product
 
 
 class MainClass:
-    def __init__(self, dataset, modality, device):
+    def __init__(self, dataset, modality, generalization, device):
         load_dotenv()
         self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
         self.RAW_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, f'data/raw/{dataset}')
         self.PROCESSED_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, f'data/processed')
         self.dataset = dataset
         self.modality = modality
+        self.generalization = generalization
         self.device = torch.device(device)
         self.segment_durations = [20, 30, 45, 60]
         self.audio_vectorizers = ['MelSpec', 'HuBERT', 'Wav2Vec2']
@@ -75,10 +76,11 @@ class MainClass:
         """
         audio_vectorizer, text_vectorizer, segment_duration = experiment.split("_")
         TrainEvalModel(
-            audio_vectorizer=audio_vectorizer,
-            text_vectorizer=text_vectorizer,
+            generalization=self.generalization,
             modality=self.modality,
             segment_duration=segment_duration,
+            audio_vectorizer=audio_vectorizer,
+            text_vectorizer=text_vectorizer,
             idx=0,
             **self.args
         )
@@ -99,6 +101,7 @@ class MainClass:
             if self.modality in ['audio', 'all']:
                 for audio_vectorizer, segment_duration in product(self.audio_vectorizers, self.segment_durations):
                     TrainEvalModel(
+                        generalization=self.generalization,
                         segment_duration=segment_duration,
                         audio_vectorizer=audio_vectorizer,
                         text_vectorizer='BERT',
@@ -110,6 +113,7 @@ class MainClass:
             if self.modality in ['text', 'all']:
                 for text_vectorizer, segment_duration in product(self.text_vectorizers, self.segment_durations):
                     TrainEvalModel(
+                        generalization=self.generalization,
                         segment_duration=segment_duration,
                         text_vectorizer=text_vectorizer,
                         audio_vectorizer='MelSpec',
@@ -123,6 +127,7 @@ class MainClass:
                         self.audio_vectorizers, self.text_vectorizers, self.segment_durations
                 ):
                     TrainEvalModel(
+                        generalization=self.generalization,
                         segment_duration=segment_duration,
                         audio_vectorizer=audio_vectorizer,
                         text_vectorizer=text_vectorizer,
@@ -137,8 +142,9 @@ class MainClass:
 @click.option('--device', required=True, help='Select from "cuda:0", "cuda:1", or "cpu" for the execution')
 @click.option('--experiment', help='Run only a single specified experiment')
 @click.option('--all_experiments', help='Run all experiments altogether')
-def main(dataset, modality, device, experiment, all_experiments):
-    execute = MainClass(dataset=dataset, modality=modality, device=device)
+@click.option('--generalization', is_flag=True, help='Activate domain generalization if included')
+def main(dataset, modality, device, experiment, all_experiments, generalization):
+    execute = MainClass(dataset=dataset, modality=modality, generalization=generalization, device=device)
     if experiment:
         execute.single_experiment(experiment=experiment)
     if all_experiments:
@@ -148,9 +154,15 @@ def main(dataset, modality, device, experiment, all_experiments):
 if __name__ == "__main__":
     """
     This file can be run directly from the command line for the "Androids_Corpus" or "DAIC_WoZ" dataset:
-        Run specific experiment:
-            - python3 main.py --experiment "MelSpec_BERT_30" --dataset "Androids_Corpus" --modality "multimodal" --device "cuda:0"
-        Run all experiments:
-            - python3 main.py --all_experiments --dataset "Androids_Corpus" --modality "multimodal" --device "cuda:0"
+    Run specific experiment:
+        - With domain generalization: 
+            python3 main.py --experiment "MelSpec_ItalianBERT_30" --dataset "Androids_Corpus" --modality "multimodal" --device "cuda:0" --generalization
+        - Without domain generalization: 
+            python3 main.py --experiment "MelSpec_ItalianBERT_30" --dataset "Androids_Corpus" --modality "multimodal" --device "cuda:0"
+    Run all experiments:
+        - With domain generalization: 
+            python3 main.py --all_experiments --dataset "Androids_Corpus" --modality "multimodal" --device "cuda:0" --generalization
+        - Without domain generalization: 
+            python3 main.py --all_experiments --dataset "Androids_Corpus" --modality "multimodal" --device "cuda:0"
     """
     main()

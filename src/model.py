@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Function
 
 
 class IntraModalAttention(nn.Module):
@@ -43,7 +44,7 @@ class CrossModalAttention(nn.Module):
         return output
 
 
-class MultimodalClassifier(nn.Module):
+class FeatureExtractor(nn.Module):
     """
     1. First, audio and text segments are fed through the vectorizers, taking as output a sequence of vectors with
        dimensionality <batch_size, seq_len, feature_dim>, where `seq_len` depends on the audio and text lengths.
@@ -64,7 +65,6 @@ class MultimodalClassifier(nn.Module):
             text_feature_dim,
             audio_lstm_hidden_dim,
             text_lstm_hidden_dim,
-            fc_hidden_dim,
             attn_hidden_dim,
             cross_attn_hidden_dim,
             lstm_n_layers=1
@@ -77,11 +77,11 @@ class MultimodalClassifier(nn.Module):
         self.text_bilstm_dim = text_lstm_hidden_dim * 2
 
         if modality == 'audio':
-            self.linear_input_dim = self.audio_bilstm_dim
+            self.output_dim = self.audio_bilstm_dim
         elif modality == 'text':
-            self.linear_input_dim = self.text_bilstm_dim
+            self.output_dim = self.text_bilstm_dim
         elif modality == 'multimodal':
-            self.linear_input_dim = self.audio_bilstm_dim + self.text_bilstm_dim + cross_attn_hidden_dim
+            self.output_dim = self.audio_bilstm_dim + self.text_bilstm_dim + cross_attn_hidden_dim
 
         self.audio_lstm = nn.LSTM(
             input_size=self.audio_feature_dim,
@@ -107,11 +107,6 @@ class MultimodalClassifier(nn.Module):
             key_dim=self.audio_bilstm_dim,
             hidden_dim=cross_attn_hidden_dim
         )
-        self.fc = nn.Sequential(
-            nn.Linear(in_features=self.linear_input_dim, out_features=fc_hidden_dim),
-            nn.ReLU(),
-            nn.Linear(in_features=fc_hidden_dim, out_features=1)
-        )
 
     def extract_self_attended_BiLSTM(self, x, modality):
         if modality == 'audio':
@@ -134,7 +129,101 @@ class MultimodalClassifier(nn.Module):
             text_attn, text_seq = self.extract_self_attended_BiLSTM(x=x_text, modality='text')
             cross_modal_features = self.cross_attn_pool(self.cross_attn(query=text_seq, context=audio_seq))
             features = torch.cat([audio_attn, text_attn, cross_modal_features], dim=-1)
+        return features
 
-        output_logits = self.fc(features)
-        output_logit = output_logits.mean().unsqueeze(0)
-        return output_logit
+
+class DepressionPredictor(nn.Module):
+    def __init__(self, input_dim, hidden_dim):
+        super().__init__()
+        self.fc = nn.Sequential(
+            nn.Linear(in_features=input_dim, out_features=hidden_dim),
+            nn.ReLU(),
+            nn.Linear(in_features=hidden_dim, out_features=1)
+        )
+
+    def forward(self, features):
+        return self.fc(features)
+
+
+class DomainDiscriminator(nn.Module):
+    def __init__(self, input_dim, hidden_dim, n_domains):
+        super().__init__()
+        self.discriminator = nn.Sequential(
+            nn.Linear(in_features=input_dim, out_features=hidden_dim),
+            nn.ReLU(),
+            nn.Linear(in_features=hidden_dim, out_features=n_domains)
+        )
+
+    def forward(self, features):
+        return self.discriminator(features)
+
+
+class GradientReversalFunction(Function):
+    @staticmethod
+    def forward(ctx, x, alpha):
+        ctx.save_for_backward(x, alpha)
+        return x
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        grad_input = None
+        _, alpha = ctx.saved_tensors
+        if ctx.needs_input_grad[0]:
+            grad_input = - alpha * grad_output
+        return grad_input, None
+
+
+class GradientReversal(nn.Module):
+    def __init__(self, alpha):
+        super().__init__()
+        self.alpha = torch.tensor(alpha, requires_grad=False)
+
+    def forward(self, x):
+        return GradientReversalFunction.apply(x, self.alpha)
+
+
+class Model(nn.Module):
+    def __init__(
+            self,
+            generalization,
+            modality,
+            audio_feature_dim,
+            text_feature_dim,
+            audio_lstm_hidden_dim,
+            text_lstm_hidden_dim,
+            attn_hidden_dim,
+            cross_attn_hidden_dim,
+            fc_hidden_dim,
+            n_domains
+    ):
+        super().__init__()
+        self.generalization = generalization
+        self.feature_extractor = FeatureExtractor(
+            modality=modality,
+            audio_feature_dim=audio_feature_dim,
+            text_feature_dim=text_feature_dim,
+            audio_lstm_hidden_dim=audio_lstm_hidden_dim,
+            text_lstm_hidden_dim=text_lstm_hidden_dim,
+            attn_hidden_dim=attn_hidden_dim,
+            cross_attn_hidden_dim=cross_attn_hidden_dim
+        )
+        self.depression_predictor = DepressionPredictor(
+            input_dim=self.feature_extractor.output_dim,
+            hidden_dim=fc_hidden_dim
+        )
+        self.grl = GradientReversal(alpha=1.)
+        self.domain_discriminator = DomainDiscriminator(
+            input_dim=self.feature_extractor.output_dim,
+            hidden_dim=fc_hidden_dim,
+            n_domains=n_domains
+        )
+
+    def forward(self, x_audio, x_text):
+        features = self.feature_extractor(x_audio, x_text)
+        depression_logits = self.depression_predictor(features)
+
+        if self.training and self.generalization:
+            domain_logits = self.domain_discriminator(self.grl(features))
+            return depression_logits, domain_logits
+        else:
+            return depression_logits
