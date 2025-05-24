@@ -18,7 +18,7 @@ import gc
 
 
 class EarlyStopping:
-    def __init__(self, patience, epsilon=1e-2):
+    def __init__(self, patience, epsilon=1e-1):
         self.patience = patience
         self.epsilon = epsilon
         self.early_stop = False
@@ -31,10 +31,11 @@ class EarlyStopping:
         if len(self.queue_train_losses) < self.patience or len(self.queue_val_losses) < self.patience:
             return
 
-        # Early stop due to negligible training loss changes OR due to increasing validation loss
-        consecutive_diffs_below_epsilon = abs(np.diff(self.queue_train_losses)) < self.epsilon
-        consecutive_diffs_positive = np.diff(self.queue_val_losses) > 0
-        self.early_stop = np.all(consecutive_diffs_below_epsilon) or np.all(consecutive_diffs_positive)
+        # Early stop due to negligible training loss changes OR due to increasing train/validation loss
+        train_diffs_below_epsilon = np.all(abs(np.diff(self.queue_train_losses)) < self.epsilon)
+        train_diffs_positive = np.all(np.diff(self.queue_train_losses) > 0)
+        val_diffs_positive = np.all(np.diff(self.queue_val_losses) > 0)
+        self.early_stop = train_diffs_below_epsilon or train_diffs_positive or val_diffs_positive
 
 
 class TrainEvalModel:
@@ -57,6 +58,7 @@ class TrainEvalModel:
             scheduler_factor,
             scheduler_patience,
             stopper_patience,
+            lambda_grl,
             n_epochs,
             random_state,
             device,
@@ -83,6 +85,7 @@ class TrainEvalModel:
         self.scheduler_factor = scheduler_factor
         self.scheduler_patience = scheduler_patience
         self.stopper_patience = stopper_patience
+        self.lambda_grl = lambda_grl
         self.n_epochs = n_epochs
         self.random_state = random_state
         self.device = device
@@ -91,9 +94,11 @@ class TrainEvalModel:
         self.reset_tensorboard = reset_tensorboard
 
         self.train_dataset, self.val_dataset, self.test_dataset = None, None, None
+        self.initialize_paths()
+        self.initialize_log()
         self.run_pipeline()
 
-    def initialize_writer_and_log(self, fold=None):
+    def initialize_paths(self):
         # Set the folder and filenames
         vectorizer = {
             'multimodal': f'{self.audio_vectorizer}_{self.text_vectorizer}',
@@ -102,21 +107,25 @@ class TrainEvalModel:
         }[self.modality]
         folder_type = 'domain_generalization' if self.generalization else 'normal'
         segment_type = f'_{self.segment_duration}s' if self.segment_duration else ''
-        fold_type = f'_fold_{fold}' if fold else ''
+
         folder_path = f'{folder_type}/{self.dataset}{segment_type}/{self.modality}/{vectorizer}'
         file_name = (
             f'{self.idx}_{self.imbalance_weighting}_{self.audio_lstm_hidden_dim}_{self.text_lstm_hidden_dim}_'
             f'{self.attn_hidden_dim}_{self.cross_attn_hidden_dim}_{self.fc_hidden_dim}_{self.lr}_{self.weight_decay}_'
-            f'{self.scheduler_factor}_{self.scheduler_patience}_{self.stopper_patience}_{self.n_epochs}'
+            f'{self.scheduler_factor}_{self.scheduler_patience}_{self.stopper_patience}_{self.lambda_grl}_{self.n_epochs}'
         )
+        self.FILE_PATH = f'{folder_path}/{file_name}'
 
+    def initialize_log(self):
         # Log setup
-        self.LOG_FILE_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'logs', folder_path, f'{file_name}.txt')
+        self.LOG_FILE_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'logs', f'{self.FILE_PATH}.txt')
         os.makedirs(os.path.dirname(self.LOG_FILE_PATH), exist_ok=True)
         if self.reset_log_file: open(self.LOG_FILE_PATH, 'w').close()
 
+    def initialize_writer(self, fold=None):
         # TensorBoard setup
-        self.WRITER_FILE_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'runs', folder_path, f'{file_name}{fold_type}')
+        fold_type = f'_fold_{fold}' if fold else ''
+        self.WRITER_FILE_PATH = os.path.join(self.PROJECT_ROOT_PATH, 'runs', f'{self.FILE_PATH}{fold_type}')
         os.makedirs(os.path.dirname(self.WRITER_FILE_PATH), exist_ok=True)
         if self.reset_tensorboard and os.path.exists(self.WRITER_FILE_PATH):
             shutil.rmtree(self.WRITER_FILE_PATH)
@@ -189,7 +198,7 @@ class TrainEvalModel:
 
         if self.dataset == 'DAIC_WoZ':
             self.fold = None
-            self.initialize_writer_and_log()
+            self.initialize_writer()
             self.train_dataset = DAICWoZDataset(train_val_test='train', **args)
             self.val_dataset = DAICWoZDataset(train_val_test='val', **args)
             self.test_dataset = DAICWoZDataset(train_val_test='test', **args)
@@ -202,7 +211,7 @@ class TrainEvalModel:
             self.n_folds = 5
             for fold in range(self.n_folds):
                 self.fold = fold + 1
-                self.initialize_writer_and_log(fold=fold)
+                self.initialize_writer(fold=fold)
                 args_fold = {'fold': fold, 'random_state': self.random_state, **args}
                 self.train_dataset = AndroidsCorpusDataset(train_val_test='train', **args_fold)
                 self.val_dataset = AndroidsCorpusDataset(train_val_test='val', **args_fold)
@@ -244,7 +253,8 @@ class TrainEvalModel:
             attn_hidden_dim=self.attn_hidden_dim,
             cross_attn_hidden_dim=self.cross_attn_hidden_dim,
             fc_hidden_dim=self.fc_hidden_dim,
-            n_domains=len(self.train_dataset)
+            n_domains=len(self.train_dataset),
+            lambda_grl=self.lambda_grl
         ).to(self.device)
         self.log(str(summary(self.model)), print_to_console=False)
         self.tensorboard_add_model_graph()
@@ -253,7 +263,9 @@ class TrainEvalModel:
         self.scheduler = ReduceLROnPlateau(
             optimizer=self.optimizer,
             patience=self.scheduler_patience,
-            factor=self.scheduler_factor
+            factor=self.scheduler_factor,
+            threshold_mode='abs',
+            threshold=1e-3
         )
 
         # ------------------------------------------- Training -------------------------------------------
@@ -265,17 +277,16 @@ class TrainEvalModel:
             # Validation Phase
             with torch.no_grad():
                 val_labels, val_predictions, val_loss = self.run_epoch(progressbar, phase='Validation', epoch=epoch)
-                test_labels, test_predictions, _ = self.run_epoch(progressbar, phase='Test')
 
             # Compute the metrics, create the logs, and add their plots to tensorboard
             lr = self.optimizer.param_groups[0]['lr']
             losses = {'Train': train_loss, 'Validation': val_loss}
-            self.log(f"Epoch [{epoch + 1}/{self.n_epochs}]:")
+            fold_descr = f'Fold [{self.fold}/{self.n_folds}], ' if self.fold else ''
+            self.log(f"{fold_descr}Epoch [{epoch + 1}/{self.n_epochs}]:")
             self.log(f"Learning Rate: {lr:.7f}")
             self.log(f"Training Loss: {losses['Train']:.3f}, Validation Loss: {losses['Validation']:.3f}")
             self.compute_metrics(train_labels, train_predictions, phase='Training', epoch=epoch)
             self.compute_metrics(val_labels, val_predictions, phase='Validation', epoch=epoch)
-            self.compute_metrics(test_labels, test_predictions, phase='Test')
             self.writer.add_scalar(tag='Learning Rate', scalar_value=lr, global_step=epoch)
             self.writer.add_scalars(main_tag='Loss', tag_scalar_dict=losses, global_step=epoch)
             self.log('-' * 65)
@@ -340,8 +351,8 @@ class TrainEvalModel:
                 n_samples = len(dataset)
                 progressbar.set_description(self.get_progressbar_description(phase, epoch, idx, n_samples, loss))
 
-            # Collect predictions and take majority vote
-            pred = torch.sigmoid(depression_logits).round().squeeze().mode().values.item()
+            # Collect predictions and by taking average logit
+            pred = torch.sigmoid(depression_logits.mean()).round().item()
             predictions.append(pred)
             labels.append(y.item())
 

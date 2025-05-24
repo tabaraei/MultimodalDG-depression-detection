@@ -1,7 +1,8 @@
 from transformers import AutoModel, AutoTokenizer, AutoProcessor, AutoModelForSpeechSeq2Seq, pipeline
 from torch.nn.utils.rnn import pad_sequence
 import torch
-import librosa
+from librosa import power_to_db
+from librosa.feature import melspectrogram, mfcc, delta
 import numpy as np
 import gc
 
@@ -18,7 +19,11 @@ class AudioFeatureExtractor:
         if self.model_name == 'MelSpec':
             self.n_mels = 128
             self.feature_dim = self.n_mels * 3
-            self.extractor = self.melspectrogram_extractor
+            self.extractor = self.traditional_extractor
+        elif self.model_name == 'MFCC':
+            self.n_mfcc = 13
+            self.feature_dim = self.n_mfcc * 3
+            self.extractor = self.traditional_extractor
         else:
             models = {
                 'Wav2Vec2': 'facebook/wav2vec2-base-960h',
@@ -46,21 +51,34 @@ class AudioFeatureExtractor:
             gc.collect()
         return torch.cat(segments_features, dim=self.concat_dim)
 
-    def melspectrogram_extractor(self, audio_segments, n_fft=1024, hop_length=512):
+    def traditional_extractor(self, audio_segments, n_fft=4096, hop_length=512):
         segments_features = []
         for segment in audio_segments:
-            mel = librosa.feature.melspectrogram(
-                y=segment,
-                sr=self.sample_rate,
-                n_mels=self.n_mels,
-                hop_length=hop_length,
-                n_fft=n_fft
-            )
-            logmel = torch.tensor(librosa.power_to_db(mel, ref=np.max), dtype=torch.float32)
-            delta = torch.tensor(librosa.feature.delta(logmel), dtype=torch.float32)
-            delta2 = torch.tensor(librosa.feature.delta(logmel, order=2), dtype=torch.float32)
+            if self.model_name == 'MelSpec':
+                # extract log-mel spectrogram features
+                features = power_to_db(
+                    melspectrogram(
+                        y=segment,
+                        sr=self.sample_rate,
+                        n_mels=self.n_mels,
+                        hop_length=hop_length,
+                        n_fft=n_fft
+                    ), ref=np.max
+                )
+            elif self.model_name == 'MFCC':
+                # extract MFCC features
+                features = mfcc(
+                    y=segment,
+                    sr=self.sample_rate,
+                    n_mfcc=self.n_mfcc,
+                    hop_length=hop_length,
+                    n_fft=n_fft
+                )
+            delta_features = torch.tensor(delta(features), dtype=torch.float32)
+            delta2_features = torch.tensor(delta(features, order=2), dtype=torch.float32)
+            features = torch.tensor(features, dtype=torch.float32)
 
-            features = torch.cat([logmel.T, delta.T, delta2.T], dim=-1)
+            features = torch.cat([features.T, delta_features.T, delta2_features.T], dim=-1)
             segments_features.append(features)
 
         return torch.stack(segments_features)

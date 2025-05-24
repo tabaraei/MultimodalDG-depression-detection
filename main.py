@@ -9,7 +9,7 @@ from itertools import product
 
 
 class MainClass:
-    def __init__(self, dataset, modality, generalization, device):
+    def __init__(self, dataset, modality, generalization, device, idx):
         load_dotenv()
         self.PROJECT_ROOT_PATH = os.getenv('PROJECT_ROOT_PATH')
         self.RAW_DATA_PATH = os.path.join(self.PROJECT_ROOT_PATH, f'data/raw/{dataset}')
@@ -18,6 +18,7 @@ class MainClass:
         self.modality = modality
         self.generalization = generalization
         self.device = torch.device(device)
+        self.idx = idx
         self.segment_durations = [20, 30, 45, 60]
         self.audio_vectorizers = ['MelSpec', 'HuBERT', 'Wav2Vec2']
         self.text_vectorizers = ['BERT', 'ItalianBERT', 'XLMRoBERTa']
@@ -32,12 +33,14 @@ class MainClass:
             'fc_hidden_dim': 128,
             'lr': 0.00001,
             'weight_decay': 0.00001,
-            'scheduler_factor': 0.3,
-            'scheduler_patience': 2,
-            'stopper_patience': 4,
+            'scheduler_factor': 0.5,
+            'scheduler_patience': 1,
+            'stopper_patience': 3,
+            'lambda_grl': 0.5,
             'n_epochs': 100,
             'imbalance_weighting': False,
             'random_state': 21,
+            'idx': self.idx,
             'device': self.device
         }
 
@@ -78,10 +81,9 @@ class MainClass:
         TrainEvalModel(
             generalization=self.generalization,
             modality=self.modality,
-            segment_duration=segment_duration,
+            segment_duration=int(segment_duration),
             audio_vectorizer=audio_vectorizer,
             text_vectorizer=text_vectorizer,
-            idx=0,
             **self.args
         )
 
@@ -93,47 +95,43 @@ class MainClass:
         Different experiments can be run in parallel over different GPUs by modifying segment_duration
         Note that XLMRoBERTa is very slow, and it is suggested to be excluded below, and run separately on CPU
         """
-        args = self.args.copy()
-        for i in range(n_repeats):
-            args['idx'] = i + 1
+        # audio-only modality training
+        if self.modality in ['audio', 'all']:
+            for audio_vectorizer, segment_duration in product(self.audio_vectorizers, self.segment_durations):
+                TrainEvalModel(
+                    generalization=self.generalization,
+                    segment_duration=segment_duration,
+                    audio_vectorizer=audio_vectorizer,
+                    text_vectorizer='BERT',
+                    modality='audio',
+                    **self.args
+                )
 
-            # audio-only modality training
-            if self.modality in ['audio', 'all']:
-                for audio_vectorizer, segment_duration in product(self.audio_vectorizers, self.segment_durations):
-                    TrainEvalModel(
-                        generalization=self.generalization,
-                        segment_duration=segment_duration,
-                        audio_vectorizer=audio_vectorizer,
-                        text_vectorizer='BERT',
-                        modality='audio',
-                        **args
-                    )
+        # text-only modality training
+        if self.modality in ['text', 'all']:
+            for text_vectorizer, segment_duration in product(self.text_vectorizers, self.segment_durations):
+                TrainEvalModel(
+                    generalization=self.generalization,
+                    segment_duration=segment_duration,
+                    text_vectorizer=text_vectorizer,
+                    audio_vectorizer='MelSpec',
+                    modality='text',
+                    **self.args
+                )
 
-            # text-only modality training
-            if self.modality in ['text', 'all']:
-                for text_vectorizer, segment_duration in product(self.text_vectorizers, self.segment_durations):
-                    TrainEvalModel(
-                        generalization=self.generalization,
-                        segment_duration=segment_duration,
-                        text_vectorizer=text_vectorizer,
-                        audio_vectorizer='MelSpec',
-                        modality='text',
-                        **args
-                    )
-
-            # Multimodal training
-            if self.modality in ['multimodal', 'all']:
-                for audio_vectorizer, text_vectorizer, segment_duration in product(
-                        self.audio_vectorizers, self.text_vectorizers, self.segment_durations
-                ):
-                    TrainEvalModel(
-                        generalization=self.generalization,
-                        segment_duration=segment_duration,
-                        audio_vectorizer=audio_vectorizer,
-                        text_vectorizer=text_vectorizer,
-                        modality='multimodal',
-                        **args
-                    )
+        # Multimodal training
+        if self.modality in ['multimodal', 'all']:
+            for audio_vectorizer, text_vectorizer, segment_duration in product(
+                    self.audio_vectorizers, self.text_vectorizers, self.segment_durations
+            ):
+                TrainEvalModel(
+                    generalization=self.generalization,
+                    segment_duration=segment_duration,
+                    audio_vectorizer=audio_vectorizer,
+                    text_vectorizer=text_vectorizer,
+                    modality='multimodal',
+                    **self.args
+                )
 
 
 @click.command()
@@ -144,11 +142,13 @@ class MainClass:
 @click.option('--all_experiments', help='Run all experiments altogether')
 @click.option('--generalization', is_flag=True, help='Activate domain generalization if included')
 def main(dataset, modality, device, experiment, all_experiments, generalization):
-    execute = MainClass(dataset=dataset, modality=modality, generalization=generalization, device=device)
-    if experiment:
-        execute.single_experiment(experiment=experiment)
-    if all_experiments:
-        execute.all_experiments()
+    n_repeats = 1
+    for idx in range(n_repeats):
+        execute = MainClass(dataset=dataset, modality=modality, generalization=generalization, device=device, idx=idx)
+        if experiment:
+            execute.single_experiment(experiment=experiment)
+        if all_experiments:
+            execute.all_experiments()
 
 
 if __name__ == "__main__":

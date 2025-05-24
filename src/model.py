@@ -194,7 +194,8 @@ class Model(nn.Module):
             attn_hidden_dim,
             cross_attn_hidden_dim,
             fc_hidden_dim,
-            n_domains
+            n_domains,
+            lambda_grl
     ):
         super().__init__()
         self.generalization = generalization
@@ -211,7 +212,7 @@ class Model(nn.Module):
             input_dim=self.feature_extractor.output_dim,
             hidden_dim=fc_hidden_dim
         )
-        self.grl = GradientReversal(alpha=1.)
+        self.grl = GradientReversal(alpha=lambda_grl)
         self.domain_discriminator = DomainDiscriminator(
             input_dim=self.feature_extractor.output_dim,
             hidden_dim=fc_hidden_dim,
