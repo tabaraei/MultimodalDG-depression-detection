@@ -90,7 +90,7 @@ class AudioFeatureExtractor:
 class TextFeatureExtractor:
     def __init__(self, model_name, segment_duration, device):
         models = {
-            'BERT': 'bert-base-uncased',
+            'BERT': 'google-bert/bert-base-multilingual-cased',
             'ItalianBERT': 'dbmdz/bert-base-italian-xxl-cased',
             'XLMRoBERTa': 'FacebookAI/xlm-roberta-large'
         }

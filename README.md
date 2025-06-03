@@ -42,7 +42,7 @@ MS-Thesis/
 ├── runs/                         # Stores the tensorboard workers for further access
 ├── .env                          # Environment variables (API keys, paths, etc.)
 ├── .gitignore                    # Files & directories to ignore in version control
-├── Depression_Detection.ipynb    # Jupyter notebook for quick experiments & visualization
+├── playground.ipynb    # Jupyter notebook for quick experiments & visualization
 ├── LICENSE                       # License information for the project
 ├── main.py                       # main code block to run from the command-line
 ├── README.md                     # Project overview, setup instructions, and usage details

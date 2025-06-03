@@ -87,7 +87,7 @@ class MainClass:
             **self.args
         )
 
-    def all_experiments(self, n_repeats=5):
+    def all_experiments(self):
         """
         Valid modalities to be used for this function are "text", "audio", "multimodal", and "all"
         In case "all" is selected, all the modalities will be considered for the execution of the experiments
@@ -139,10 +139,10 @@ class MainClass:
 @click.option('--modality', help='Which modality for experiments: "text", "audio", "multimodal", or "all"')
 @click.option('--device', required=True, help='Select from "cuda:0", "cuda:1", or "cpu" for the execution')
 @click.option('--experiment', help='Run only a single specified experiment')
-@click.option('--all_experiments', help='Run all experiments altogether')
+@click.option('--all_experiments', is_flag=True, help='Run all experiments altogether')
 @click.option('--generalization', is_flag=True, help='Activate domain generalization if included')
 def main(dataset, modality, device, experiment, all_experiments, generalization):
-    n_repeats = 1
+    n_repeats = 3
     for idx in range(n_repeats):
         execute = MainClass(dataset=dataset, modality=modality, generalization=generalization, device=device, idx=idx)
         if experiment:
