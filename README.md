@@ -53,19 +53,48 @@ pip install -r requirements.txt
 
 ### Running the Project
 
+The `main.py` script provides a command-line interface (CLI) for running experiments on the _Androids_Corpus_ dataset. It supports flexible configuration of modalities, feature extractors, and experimental setups. You can execute **individual experiments** or run **all combinations** of audio and text feature extractors across different segment durations. The system supports running _with_ or _without_ domain generalization.
+
+```bash
+python3 main.py [OPTIONS] [TASK]
+
+Key [OPTIONS]:
+├── –dataset (REQUIRED)           # Dataset to use {“Androids_Corpus”}
+├── –modality (REQUIRED)          # Input modality {“audio”, “text”, “multimodal”}
+├── –device (REQUIRED)            # Target device {“cpu”, “cuda:0”, “cuda:1”}
+├── –generalization               # Optional flag to enable domain generalization
+
+Key [TASK]:
+├── –all_experiments              # Run all predefined experiments
+├── –experiment                   # Run a specific experiment by name
+```
+
+1. To run all experiments at once, simply run:
+```bash
+python3 main.py --all_experiments --dataset "Androids_Corpus" --modality "multimodal" --device "cuda:0"
+```
+
+2. To run a specific experiment, simply specify the name of the experiment as `{audio_vectorizer}_{text_vectorizer}_{segment_duration}`, where:
+   - `audio_vectorizer`:  {MelSpec, HuBERT, Wav2Vec2}
+   - `text_vectorizer`: {BERT, ItalianBERT, XLMRoBERTa}
+   - `segment_duration`: {20, 30, 45, 60}
+```bash
+python3 main.py --experiment "MelSpec_ItalianBERT_30" --dataset "Androids_Corpus" --modality "multimodal" --device "cuda:0"
+```
+
+Add the `--generalization` flag at the end of any command to enable domain generalization.
+
+
+
 > [!IMPORTANT]
-> Modify the `.env` file, updating `PROJECT_ROOT_PATH` with the correct absolute path to the project directory
-
-### TensorBoard
-
-To prepare the TensorBoard for a given experiment (e.g., `AC30_Wav_ITB_multimodal`):
-
-1. Run `tensorboard --logdir "runs/Androids_Corpus_30s/Wav2Vec2_ItalianBERT/multimodal" --port 6010`
-2. Access the TensorBoard on `http://localhost:6010/`
+> Before running the project, modify the `.env` file, updating `PROJECT_ROOT_PATH` with the correct absolute path to the project directory.
+> To prepare the TensorBoard for a given experiment (e.g., `AC30_Wav_ITB_multimodal`):
+> - Check the status of previous TensorBoards on Linux, run `ps aux | grep tensorboard`
+> - Run `tensorboard --logdir "runs/Androids_Corpus_30s/Wav2Vec2_ItalianBERT/multimodal" --port 6010`
+> - Access the TensorBoard on `http://localhost:6010/`
 
 > [!TIP]
-> - To check the status of previous TensorBoards on Linux, run `ps aux | grep tensorboard`
-> - Mapping a remote execution to local server can be achieved by `ssh -L 6010:localhost:6010 USER@SERVER_ADDRESS`
+> Mapping a remote execution to local server can be achieved by `ssh -L 6010:localhost:6010 USER@SERVER_ADDRESS`
 
 ### Project Structure
 
