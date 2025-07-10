@@ -55,7 +55,7 @@ pip install -r requirements.txt
 
 The `main.py` script provides a command-line interface (CLI) for running experiments on the _Androids_Corpus_ dataset. It supports flexible configuration of modalities, feature extractors, and experimental setups. You can execute **individual experiments** or run **all combinations** of audio and text feature extractors across different segment durations. The system supports running _with_ or _without_ domain generalization.
 
-```bash
+```yaml
 python3 main.py [OPTIONS] [TASK]
 
 Key [OPTIONS]:
