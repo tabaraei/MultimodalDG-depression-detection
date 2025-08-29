@@ -141,7 +141,14 @@ class MainClass:
 @click.option('--experiment', help='Run only a single specified experiment')
 @click.option('--all_experiments', is_flag=True, help='Run all experiments altogether')
 @click.option('--generalization', is_flag=True, help='Activate domain generalization if included')
-def main(dataset, modality, device, experiment, all_experiments, generalization):
+@click.option('--download_dataset', is_flag=True, help='Download the dataset')
+def main(dataset, modality, device, experiment, all_experiments, generalization, download_dataset):
+    # Only download the dataset
+    if download_dataset:
+        DatasetDownloader(dataset=dataset, device=torch.device(device))
+        return
+
+    # Run the experiments
     n_repeats = 3
     for idx in range(n_repeats):
         execute = MainClass(dataset=dataset, modality=modality, generalization=generalization, device=device, idx=idx)
@@ -154,6 +161,8 @@ def main(dataset, modality, device, experiment, all_experiments, generalization)
 if __name__ == "__main__":
     """
     This file can be run directly from the command line for the "Androids_Corpus" or "DAIC_WoZ" dataset:
+    Only download the dataset:
+        python3 main.py --download_dataset --dataset "Androids_Corpus" --device "cuda:0"
     Run specific experiment:
         - With domain generalization: 
             python3 main.py --experiment "MelSpec_ItalianBERT_30" --dataset "Androids_Corpus" --modality "multimodal" --device "cuda:0" --generalization

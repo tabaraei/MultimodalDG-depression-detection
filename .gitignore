@@ -3,6 +3,7 @@
 /data/
 /.idea/
 __pycache__/
+.vscode/
 
 # Ignore the following files
 .DS_Store

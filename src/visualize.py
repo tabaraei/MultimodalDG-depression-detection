@@ -46,14 +46,17 @@ class Visualization:
 
         df = pd.DataFrame({'duration': durations, 'label': labels})
         df = df.sort_values(by='label', ascending=False).reset_index(drop=True)
-        fig = plt.figure(figsize=(16, 3))
+        fig = plt.figure(figsize=(8, 2))
         ax = sns.barplot(x=df.index, y='duration', hue='label', data=df,
                          palette={'Control': '#f96f00', 'Depressed': '#325097'}, dodge=False)
-        ax.set(xlabel='Participant', ylabel='Duration (seconds)')
+        ax.set_ylabel("Duration (seconds)", fontsize=9)
+        ax.set_xlabel("Participant", fontsize=9)
+        ax.tick_params(axis='y', labelsize=7)
         ax.grid(True, axis='y', linestyle='--', linewidth=0.5, alpha=0.7)
-        ax.legend()
+        ax.legend(loc='upper right', fontsize=8, title_fontsize=9)
         plt.xticks([])
         plt.tight_layout()
+        fig.savefig("images/durations.png", dpi=300, bbox_inches="tight")
         return fig
 
     def waveform_sample(self, idx):
@@ -66,6 +69,20 @@ class Visualization:
         plt.axis('off')
         plt.tight_layout(pad=0)
         return fig
+
+    def plot_line(self, df, hue, palette, legend_title, fig_height, ylim):
+        fig, ax = plt.subplots(figsize=(8, fig_height))
+        sns.lineplot(
+            data=df, x='Metric', y='Score',
+            hue=hue, marker='o', palette=palette, ax=ax
+        )
+        ax.set_ylabel("Percentage (%)", fontsize=9)
+        ax.set_xlabel("", fontsize=9)
+        ax.set_ylim(ylim[0], ylim[1])
+        ax.legend(title=legend_title, loc='lower right', fontsize=8, title_fontsize=9)
+        ax.grid(True)
+        fig.tight_layout()
+        return fig, ax
 
     def results(self):
         cols = ["Audio Vectorizer", "Text Vectorizer", "Accuracy", "Precision", "Recall", "F1-Score"]
@@ -118,41 +135,27 @@ class Visualization:
             ["Wav2Vec2", "XLM-RoBERTa", 81.57, 81.06, 86.05, 82.70]
         ], columns=cols)
 
-        # segment durations' plot
+        # --- Segment durations' plot ---
         x1 = df_20s.iloc[:, 2:].mean()
         x2 = df_30s.iloc[:, 2:].mean()
         x3 = df_45s.iloc[:, 2:].mean()
         x4 = df_60s.iloc[:, 2:].mean()
-        df_plot = pd.DataFrame({
-            '20s': x1,
-            '30s': x2,
-            '45s': x3,
-            '60s': x4
-        }).reset_index().melt(id_vars='index', var_name='segment_duration', value_name='Score')
+        df_plot = pd.DataFrame({'20s': x1, '30s': x2, '45s': x3, '60s': x4})
+        df_plot = df_plot.reset_index().melt(id_vars='index', var_name='segment_duration', value_name='Score')
         df_plot = df_plot.rename(columns={'index': 'Metric'})
-        fig1, ax1 = plt.subplots(figsize=(8, 4))
-        sns.lineplot(data=df_plot, x='Metric', y='Score', hue='segment_duration', marker='o', palette='Set2', ax=ax1)
-        ax1.set_ylabel("Percentage (%)")
-        ax1.set_xlabel("")
-        ax1.set_ylim(bottom=70)
-        ax1.legend(loc='lower right', title="segment_duration")
-        ax1.grid(True)
-        fig1.tight_layout()
 
-        # feature extractors' plot
+        # --- Feature extractors' plot ---
         all_data = pd.concat([df_20s, df_30s, df_45s, df_60s], ignore_index=True)
         avg_metrics = all_data.groupby(["Audio Vectorizer", "Text Vectorizer"]).mean(numeric_only=True).reset_index()
         avg_metrics['Combo'] = avg_metrics['Audio Vectorizer'] + ' / ' + avg_metrics['Text Vectorizer']
-        df_plot = avg_metrics.melt(id_vars='Combo', value_vars=['Accuracy', 'Precision', 'Recall', 'F1-Score'],
-                                   var_name='Metric', value_name='Score')
-        fig2, ax2 = plt.subplots(figsize=(10, 4))
-        sns.lineplot(data=df_plot, x='Metric', y='Score', hue='Combo', marker='o', palette='Set3', ax=ax2)
-        ax2.set_ylabel("Percentage (%)")
-        ax2.set_xlabel("")
-        ax2.set_ylim(60, 95)
-        ax2.legend(title='Feature Extractor', bbox_to_anchor=(1.02, 1.023))
-        ax2.grid(True)
-        fig2.tight_layout()
+        df_plot2 = avg_metrics.melt(id_vars='Combo',
+                                    value_vars=['Accuracy', 'Precision', 'Recall', 'F1-Score'],
+                                    var_name='Metric', value_name='Score')
 
-        # return both plots
+
+        # Create and return figures
+        fig1, ax1 = self.plot_line(df_plot, hue='segment_duration', palette='Set2', legend_title="Segment Duration", fig_height=3.5, ylim=[75, 90])
+        fig2, ax2 = self.plot_line(df_plot2, hue='Combo', palette='Set3', legend_title="Feature Extractor", fig_height=4.4, ylim=[60, 93])
+        fig1.savefig("images/performance_segments.png", dpi=300, bbox_inches="tight")
+        fig2.savefig("images/performance_models.png", dpi=300, bbox_inches="tight")
         return fig1, fig2
