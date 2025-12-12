@@ -9,6 +9,10 @@ import os
 import librosa
 import re
 
+plt.rcParams.update({
+    "font.family": "serif",
+    "font.size": 9,
+})
 
 class Visualization:
     def __init__(self):
@@ -46,17 +50,17 @@ class Visualization:
 
         df = pd.DataFrame({'duration': durations, 'label': labels})
         df = df.sort_values(by='label', ascending=False).reset_index(drop=True)
-        fig = plt.figure(figsize=(8, 2))
+        fig = plt.figure(figsize=(8, 3))
         ax = sns.barplot(x=df.index, y='duration', hue='label', data=df,
                          palette={'Control': '#f96f00', 'Depressed': '#325097'}, dodge=False)
-        ax.set_ylabel("Duration (seconds)", fontsize=9)
-        ax.set_xlabel("Participant", fontsize=9)
-        ax.tick_params(axis='y', labelsize=7)
+        ax.set_ylabel("Duration (seconds)", fontsize=14, labelpad=7)
+        ax.set_xlabel("Participant", fontsize=14, labelpad=7)
+        ax.tick_params(axis='y', labelsize=11)
         ax.grid(True, axis='y', linestyle='--', linewidth=0.5, alpha=0.7)
-        ax.legend(loc='upper right', fontsize=8, title_fontsize=9)
+        ax.legend(loc='upper right', fontsize=11, title_fontsize=12)
         plt.xticks([])
         plt.tight_layout()
-        fig.savefig("images/durations.png", dpi=300, bbox_inches="tight")
+        fig.savefig("images/durations.png", dpi=400, bbox_inches="tight")
         return fig
 
     def waveform_sample(self, idx):
@@ -76,10 +80,12 @@ class Visualization:
             data=df, x='Metric', y='Score',
             hue=hue, marker='o', palette=palette, ax=ax
         )
-        ax.set_ylabel("Percentage (%)", fontsize=9)
-        ax.set_xlabel("", fontsize=9)
+        ax.set_ylabel("Percentage (%)", fontsize=13, labelpad=7)
+        ax.set_xlabel("", labelpad=7)
         ax.set_ylim(ylim[0], ylim[1])
-        ax.legend(title=legend_title, loc='lower right', fontsize=8, title_fontsize=9)
+        ax.tick_params(axis='y', labelsize=11)
+        ax.tick_params(axis='x', labelsize=12.5)
+        ax.legend(title=legend_title, loc='lower right', fontsize=10, title_fontsize=11)
         ax.grid(True)
         fig.tight_layout()
         return fig, ax
@@ -90,49 +96,49 @@ class Visualization:
         df_20s = pd.DataFrame([
             ["MelSpec", "BERT", 77.18, 76.23, 88.10, 80.47],
             ["MelSpec", "ItalianBERT", 86.37, 86.76, 89.49, 87.34],
-            ["MelSpec", "XLM-RoBERTa", 68.45, 66.05, 92.65, 76.07],
+            ["MelSpec", "XLMRoBERTa", 68.45, 66.05, 92.65, 76.07],
             ["HuBERT", "BERT", 76.21, 74.07, 86.39, 78.80],
             ["HuBERT", "ItalianBERT", 83.06, 80.44, 91.71, 85.03],
-            ["HuBERT", "XLM-RoBERTa", 70.44, 71.36, 81.61, 72.81],
+            ["HuBERT", "XLMRoBERTa", 70.44, 71.36, 81.61, 72.81],
             ["Wav2Vec2", "BERT", 78.79, 77.63, 86.59, 80.93],
             ["Wav2Vec2", "ItalianBERT", 86.81, 85.36, 93.46, 88.25],
-            ["Wav2Vec2", "XLM-RoBERTa", 73.27, 73.31, 79.63, 74.99]
+            ["Wav2Vec2", "XLMRoBERTa", 73.27, 73.31, 79.63, 74.99]
         ], columns=cols)
 
         df_30s = pd.DataFrame([
             ["MelSpec", "BERT", 85.19, 85.91, 89.29, 86.83],
             ["MelSpec", "ItalianBERT", 90.37, 90.77, 92.00, 90.77],
-            ["MelSpec", "XLM-RoBERTa", 67.88, 69.07, 85.37, 74.21],
+            ["MelSpec", "XLMRoBERTa", 67.88, 69.07, 85.37, 74.21],
             ["HuBERT", "BERT", 77.88, 76.88, 87.97, 80.92],
             ["HuBERT", "ItalianBERT", 82.49, 80.58, 91.08, 84.74],
-            ["HuBERT", "XLM-RoBERTa", 71.27, 72.43, 87.67, 75.97],
+            ["HuBERT", "XLMRoBERTa", 71.27, 72.43, 87.67, 75.97],
             ["Wav2Vec2", "BERT", 81.02, 79.60, 90.44, 83.75],
             ["Wav2Vec2", "ItalianBERT", 86.22, 85.90, 92.16, 88.09],
-            ["Wav2Vec2", "XLM-RoBERTa", 73.87, 75.03, 82.73, 76.58]
+            ["Wav2Vec2", "XLMRoBERTa", 73.87, 75.03, 82.73, 76.58]
         ], columns=cols)
 
         df_45s = pd.DataFrame([
             ["MelSpec", "BERT", 84.31, 84.85, 87.29, 85.42],
             ["MelSpec", "ItalianBERT", 88.10, 87.09, 90.89, 88.72],
-            ["MelSpec", "XLM-RoBERTa", 70.77, 69.81, 85.61, 74.97],
+            ["MelSpec", "XLMRoBERTa", 70.77, 69.81, 85.61, 74.97],
             ["HuBERT", "BERT", 77.29, 77.51, 87.38, 80.43],
             ["HuBERT", "ItalianBERT", 85.36, 85.72, 89.49, 86.63],
-            ["HuBERT", "XLM-RoBERTa", 70.75, 71.67, 83.18, 74.74],
+            ["HuBERT", "XLMRoBERTa", 70.75, 71.67, 83.18, 74.74],
             ["Wav2Vec2", "BERT", 79.67, 84.54, 82.75, 80.36],
             ["Wav2Vec2", "ItalianBERT", 83.07, 85.49, 87.73, 85.08],
-            ["Wav2Vec2", "XLM-RoBERTa", 70.95, 71.53, 81.79, 74.31]
+            ["Wav2Vec2", "XLMRoBERTa", 70.95, 71.53, 81.79, 74.31]
         ], columns=cols)
 
         df_60s = pd.DataFrame([
             ["MelSpec", "BERT", 85.79, 86.97, 88.89, 87.13],
             ["MelSpec", "ItalianBERT", 87.47, 90.43, 87.82, 88.01],
-            ["MelSpec", "XLM-RoBERTa", 75.45, 75.00, 86.17, 78.89],
+            ["MelSpec", "XLMRoBERTa", 75.45, 75.00, 86.17, 78.89],
             ["HuBERT", "BERT", 79.91, 81.06, 85.42, 82.02],
             ["HuBERT", "ItalianBERT", 80.19, 80.80, 87.06, 82.45],
-            ["HuBERT", "XLM-RoBERTa", 76.42, 75.50, 86.53, 78.59],
+            ["HuBERT", "XLMRoBERTa", 76.42, 75.50, 86.53, 78.59],
             ["Wav2Vec2", "BERT", 80.83, 83.55, 83.01, 82.05],
             ["Wav2Vec2", "ItalianBERT", 83.97, 85.05, 87.31, 85.46],
-            ["Wav2Vec2", "XLM-RoBERTa", 81.57, 81.06, 86.05, 82.70]
+            ["Wav2Vec2", "XLMRoBERTa", 81.57, 81.06, 86.05, 82.70]
         ], columns=cols)
 
         # --- Segment durations' plot ---
@@ -154,8 +160,8 @@ class Visualization:
 
 
         # Create and return figures
-        fig1, ax1 = self.plot_line(df_plot, hue='segment_duration', palette='Set2', legend_title="Segment Duration", fig_height=3.5, ylim=[75, 90])
-        fig2, ax2 = self.plot_line(df_plot2, hue='Combo', palette='Set3', legend_title="Feature Extractor", fig_height=4.4, ylim=[60, 93])
-        fig1.savefig("images/performance_segments.png", dpi=300, bbox_inches="tight")
-        fig2.savefig("images/performance_models.png", dpi=300, bbox_inches="tight")
+        fig1, ax1 = self.plot_line(df_plot, hue='segment_duration', palette='Set2', legend_title="Segment Duration", fig_height=3.5, ylim=[73, 90])
+        fig2, ax2 = self.plot_line(df_plot2, hue='Combo', palette='Set3', legend_title="Feature Extractor", fig_height=4.4, ylim=[50, 93])
+        fig1.savefig("images/performance_segments.png", dpi=400, bbox_inches="tight")
+        fig2.savefig("images/performance_models.png", dpi=400, bbox_inches="tight")
         return fig1, fig2
