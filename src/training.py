@@ -7,7 +7,7 @@ import torch.optim as optim
 import torch
 from tqdm.auto import trange
 import numpy as np
-from sklearn.metrics import accuracy_score, balanced_accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 import os
 from dotenv import load_dotenv
 from torchinfo import summary
@@ -163,18 +163,20 @@ class TrainEvalModel:
         precision = round(precision_score(labels, predictions, zero_division=0), n_decimals)
         recall = round(recall_score(labels, predictions, zero_division=0), n_decimals)
         f1 = round(f1_score(labels, predictions, zero_division=0), n_decimals)
+        cm = confusion_matrix(labels, predictions).T
 
         metrics = {
             'Accuracy': accuracy,
             'Balanced Accuracy': balanced_accuracy,
             'Precision': precision,
             'Recall': recall,
-            'F1': f1
+            'F1': f1,
+            'CM': cm
         }
         self.log(f'{phase} Metrics: {metrics}')
         if phase != 'Test':
             self.writer.add_scalars(main_tag=f'{phase} Metrics', tag_scalar_dict=metrics, global_step=epoch)
-        return accuracy, balanced_accuracy, precision, recall, f1
+        return accuracy, balanced_accuracy, precision, recall, f1, cm
 
     def clean_GPU_cache(self):
         del self.train_dataset, self.val_dataset, self.test_dataset, self.model
@@ -208,6 +210,7 @@ class TrainEvalModel:
 
         elif self.dataset == 'Androids_Corpus':
             fold_metrics = list()
+            confusion_matrix = list()
             self.n_folds = 5
             for fold in range(self.n_folds):
                 self.fold = fold + 1
@@ -216,20 +219,23 @@ class TrainEvalModel:
                 self.train_dataset = AndroidsCorpusDataset(train_val_test='train', **args_fold)
                 self.val_dataset = AndroidsCorpusDataset(train_val_test='val', **args_fold)
                 self.test_dataset = AndroidsCorpusDataset(train_val_test='test', **args_fold)
-                accuracy, balanced_accuracy, precision, recall, f1 = self.train_and_evaluate()
+                accuracy, balanced_accuracy, precision, recall, f1, cm = self.train_and_evaluate()
                 fold_metrics.append([accuracy, balanced_accuracy, precision, recall, f1])
+                confusion_matrix.append(cm)
                 self.writer.close()
                 self.clean_GPU_cache()
 
             accuracy, balanced_accuracy, precision, recall, f1 = np.mean(fold_metrics, axis=0)
             accuracy_std, balanced_accuracy_std, precision_std, recall_std, f1_std = np.std(fold_metrics, axis=0)
+            confusion_matrix = np.sum(confusion_matrix, axis=0)
             self.log(f"{'=' * 14} 5-fold Cross Validation Test Results {'=' * 13}")
             self.log(
                 f'Accuracy: {accuracy * 100:.2f}% ± {accuracy_std * 100:.2f}%\n'
                 f'Balanced Accuracy: {balanced_accuracy * 100:.2f}% ± {balanced_accuracy_std * 100:.2f}%\n'
                 f'Precision: {precision * 100:.2f}% ± {precision_std * 100:.2f}%\n'
                 f'Recall: {recall * 100:.2f}% ± {recall_std * 100:.2f}%\n'
-                f'F1-Score: {f1 * 100:.2f}% ± {f1_std * 100:.2f}%'
+                f'F1-Score: {f1 * 100:.2f}% ± {f1_std * 100:.2f}%\n'
+                f'Confusion Matrix: {confusion_matrix}'
             )
 
         end_time = datetime.now()
