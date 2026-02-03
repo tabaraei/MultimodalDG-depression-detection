@@ -108,4 +108,4 @@ class DatasetDownloader:
 
                         text_file_name = data_path.replace('.wav', '.txt')
                         with open(text_file_name, 'w') as f:
-                            f.write(text)
+                            f.write('\n'.join(text))
