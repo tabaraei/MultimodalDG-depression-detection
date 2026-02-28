@@ -16,27 +16,27 @@ Adopting domain generalization led to a 2.8% increase in accuracy, delivering fi
 
 | Distribution of Waveform Durations |
 | ----- |
-| ![distribution](images/durations.jpeg) |
+| ![distribution](images/durations.jpg) |
 
 | Preprocessing |
 | ----- |
-| ![preprocessing](images/preprocessing.jpeg) |
+| ![preprocessing](images/preprocessing.jpg) |
 
 | Feature Extraction Pipeline |
 | ----- |
-| ![features](images/feature_extraction.jpeg) |
+| ![features](images/feature_extraction.jpg) |
 
 | Adversarial Learning |
 | ----- |
-| ![adversarial](images/adversarial.jpeg) |
+| ![adversarial](images/adversarial.jpg) |
 
 | Results Compared to the Literature |
 | ----- |
-| ![results](images/comparison.jpeg) |
+| ![results](images/comparison.jpg) |
 
 | Avg. Performance of Feature Extractors | Avg. Performance of Segment Durations |
 | --- | --- |
-| ![performance1](images/performance_models.jpeg) | ![performance2](images/performance_segments.jpeg) |
+| ![performance1](images/performance_models.jpg) | ![performance2](images/performance_segments.jpg) |
 
 
 ### Installation
