@@ -99,7 +99,7 @@ Add the `--generalization` flag at the end of any command to enable domain gener
 ### Project Structure
 
 ```yaml
-multimodal-depression-detection/
+MultimodalDG-depression-detection/
 ├── data/                         # Contains the raw and processed data files
 │   ├── processed/                # Processed cached feature embeddings
 │   ├── raw/                      # Raw datasets before processing
