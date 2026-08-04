@@ -1,5 +1,19 @@
-## Domain Generalization for Multimodal Audio-textual Depression Detection
+## Multimodal Domain Generalization for Depression Detection: An Attention-Based BiLSTM Network With Domain-Adversarial Training
 
+The journal article based on this repository has been published in *IEEE Transactions on Neural Networks and Learning Systems (TNNLS)*. You can read the full paper via [IEEE Xplore (Early Access)](https://ieeexplore.ieee.org/document/11623297) or the [arXiv preprint](https://arxiv.org/abs/2607.22794). For references to this code or research in your work, please use the following citation:
+
+> A. Tabaraei, F. Simonetta and S. Ntalampiras, "Multimodal Domain Generalization for Depression Detection: An Attention-Based BiLSTM Network With Domain-Adversarial Training," in IEEE Transactions on Neural Networks and Learning Systems, doi: 10.1109/TNNLS.2026.3714047.
+
+```bibtex
+@article{tabaraei2026multimodal,
+  author={Tabaraei, Ali and Simonetta, Federico and Ntalampiras, Stavros},
+  journal={IEEE Transactions on Neural Networks and Learning Systems}, 
+  title={Multimodal Domain Generalization for Depression Detection: An Attention-Based BiLSTM Network With Domain-Adversarial Training}, 
+  year={2026},
+  pages={1-11},
+  doi={10.1109/TNNLS.2026.3714047}
+}
+```
 
 ### Abstract
 
